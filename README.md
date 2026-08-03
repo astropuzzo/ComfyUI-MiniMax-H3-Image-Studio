@@ -60,7 +60,8 @@ maximum-speed preset; 20 frames is the currently recommended T2I balance.
 
 - `MiniMax H3 Image • Text to Image` — use the **FL2VA** diffusion model.
 - `MiniMax H3 Image • Image to Image` — use **FL2VA** and a source-frame anchor.
-- `MiniMax H3 Image • Reference Edit` — use the separate **REF2VA** model.
+- `MiniMax H3 Image • Reference Edit` — use the separate **REF2VA** model, with
+  up to nine ordered reference images.
 - `MiniMax H3 Image • Resolution Preset` — safe H3-native aspect/size selection.
 - `MiniMax H3 Image • Sampling Preset` — official baseline or a reference preset.
 - `MiniMax H3 Image • Exact Frame Decode` — replaces core `VAEDecode` and crops
@@ -339,6 +340,17 @@ Settings: 1184 x 1760, 1.99 MP, 20 requested / 22 natural frames, 12 steps,
 Uses the separate REF2VA checkpoint. The source is encoded as a visual reference
 rather than an exact first-frame anchor, making this workflow more suitable for
 changing clothing, materials, style, environment, or other semantic details.
+The node accepts `source_image` plus optional `reference_image_2` through
+`reference_image_9`; each image is resized and VAE-encoded independently, so
+different aspect ratios and dimensions are supported. An IMAGE batch connected
+to any reference socket is also expanded into individual references, up to the
+same nine-image model limit.
+
+References keep their input order and can be named directly in the edit prompt
+as `<Picture 1>`, `<Picture 2>`, and so on. For example: “keep the person and
+composition from `<Picture 1>`, but use the jacket from `<Picture 2>` and the
+lighting style from `<Picture 3>`.” The bundled API workflow demonstrates two
+Load Image nodes. Existing one-reference workflows remain valid without changes.
 The example uses the `reference detail | beta, 20 steps` sampling profile and
 `balanced_edit` selection. Increase Source Fidelity for stricter identity and
 composition preservation; reduce it when the requested change is being resisted.

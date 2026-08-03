@@ -46,7 +46,11 @@
         "0",
         0
       ],
-      "edit_instruction": "Change the outfit into a structured black high-fashion jacket with silver details while preserving the same person, face, pose, camera angle, and environment. The result is one sharp finished fashion photograph.",
+      "reference_image_2": [
+        "14",
+        0
+      ],
+      "edit_instruction": "Keep the person, face, pose, camera angle, and environment from <Picture 1>, but use the structured black high-fashion jacket and silver details from <Picture 2>. The result is one sharp finished fashion photograph.",
       "width": [
         "4",
         0
@@ -163,6 +167,12 @@
     "class_type": "LoadImage",
     "inputs": {
       "image": "input.png"
+    }
+  },
+  "14": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "reference_2.png"
     }
   }
 }
