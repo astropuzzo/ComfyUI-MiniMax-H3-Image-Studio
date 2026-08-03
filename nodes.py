@@ -27,6 +27,7 @@ CANVAS_MULTIPLE = 32
 NATIVE_MAX_PIXELS = 768 * 1344
 MEBIPIXEL = 1024 * 1024
 REF_IMAGE_SHORT_EDGE = 2048
+MAX_REFERENCE_IMAGES = 9
 FPS = 24
 AUDIO_LATENT_FPS = 40
 
@@ -217,7 +218,13 @@ def _empty_h3_av_latent(width: int, height: int, length: int, batch_size: int = 
     }, requested_frames, natural_frames
 
 
-def _normalize_prompt(mode: str, prompt: str, optimize_prompt: bool, preserve_strength: float) -> str:
+def _normalize_prompt(
+    mode: str,
+    prompt: str,
+    optimize_prompt: bool,
+    preserve_strength: float,
+    reference_count: int = 1,
+) -> str:
     prompt = (prompt or "").strip()
     if not optimize_prompt:
         return prompt
@@ -245,9 +252,12 @@ def _normalize_prompt(mode: str, prompt: str, optimize_prompt: bool, preserve_st
             f"then hold the fully completed edited result as the still target. {still} {preserve}\n\n"
             f"Target edit: {prompt}"
         )
+    picture_tags = ", ".join(f"<Picture {index}>" for index in range(1, reference_count + 1))
+    reference_word = "reference" if reference_count == 1 else "references"
+    verb = "is" if reference_count == 1 else "are"
     return (
-        f"<Picture 1> is the visual reference for an image-editing task, not the final output. {still} {preserve}\n\n"
-        f"Target edit: {prompt}"
+        f"{picture_tags} {verb} the visual {reference_word} for an image-editing task, not the final output. "
+        f"Use each reference according to the target edit. {still} {preserve}\n\nTarget edit: {prompt}"
     )
 
 
@@ -276,6 +286,27 @@ def _reference_resize(
     th = max(CANVAS_MULTIPLE, round(h * scale / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
     resized = _resize_image(image, tw, th, "stretch")
     return resized, tw, th
+
+
+def _collect_reference_images(
+    source_image: torch.Tensor,
+    additional_images: Sequence[Optional[torch.Tensor]],
+) -> List[torch.Tensor]:
+    """Expand IMAGE batches into ordered, single-image REF2VA references."""
+    references: List[torch.Tensor] = []
+    for image in (source_image, *additional_images):
+        if image is None:
+            continue
+        if not isinstance(image, torch.Tensor) or image.ndim != 4 or image.shape[0] < 1:
+            raise ValueError("Every REF2VA reference must be a non-empty ComfyUI IMAGE batch [B,H,W,C].")
+        for batch_index in range(int(image.shape[0])):
+            references.append(image[batch_index:batch_index + 1])
+            if len(references) > MAX_REFERENCE_IMAGES:
+                raise ValueError(
+                    f"MiniMax H3 REF2VA supports at most {MAX_REFERENCE_IMAGES} reference images. "
+                    "Remove extra inputs or reduce the input IMAGE batch."
+                )
+    return references
 
 
 class H3ImageResolution:
@@ -452,6 +483,14 @@ class H3ImagePrepare:
             },
             "optional": {
                 "source_image": ("IMAGE",),
+                "reference_image_2": ("IMAGE",),
+                "reference_image_3": ("IMAGE",),
+                "reference_image_4": ("IMAGE",),
+                "reference_image_5": ("IMAGE",),
+                "reference_image_6": ("IMAGE",),
+                "reference_image_7": ("IMAGE",),
+                "reference_image_8": ("IMAGE",),
+                "reference_image_9": ("IMAGE",),
                 "manual_frames": ("INT", {
                     "default": 5,
                     "min": 1,
@@ -482,13 +521,32 @@ class H3ImagePrepare:
         reference_size: str,
         source_image: Optional[torch.Tensor] = None,
         manual_frames: int = 5,
+        reference_image_2: Optional[torch.Tensor] = None,
+        reference_image_3: Optional[torch.Tensor] = None,
+        reference_image_4: Optional[torch.Tensor] = None,
+        reference_image_5: Optional[torch.Tensor] = None,
+        reference_image_6: Optional[torch.Tensor] = None,
+        reference_image_7: Optional[torch.Tensor] = None,
+        reference_image_8: Optional[torch.Tensor] = None,
+        reference_image_9: Optional[torch.Tensor] = None,
     ):
         width = _round_to_multiple(width, CANVAS_MULTIPLE)
         height = _round_to_multiple(height, CANVAS_MULTIPLE)
         legacy_single_frame = frame_preset == "1 frame | forced single frame (unsupported)"
         length, manual_frame_note = _resolve_frame_count(frame_preset, manual_frames)
         latent, requested_frames, natural_frames = _empty_h3_av_latent(width, height, length)
-        final_prompt = _normalize_prompt(mode, prompt, optimize_prompt, preserve_strength)
+        additional_references = (
+            reference_image_2, reference_image_3, reference_image_4, reference_image_5,
+            reference_image_6, reference_image_7, reference_image_8, reference_image_9,
+        )
+        references = (
+            _collect_reference_images(source_image, additional_references)
+            if mode == "reference_edit (REF2VA)" and source_image is not None
+            else []
+        )
+        final_prompt = _normalize_prompt(
+            mode, prompt, optimize_prompt, preserve_strength, max(1, len(references))
+        )
 
         black = torch.zeros((1, height, width, 3), dtype=torch.float32)
         fitted_source = black
@@ -514,22 +572,30 @@ class H3ImagePrepare:
         else:
             if source_image is None:
                 raise ValueError("reference_edit mode requires source_image")
-            fitted_source = _resize_image(source_image[:1], width, height, source_fit)
+            fitted_source = _resize_image(references[0], width, height, source_fit)
             ref_mode = "max_identity_2048" if reference_size == "max_identity_2048" else "match_generation_area"
-            reference, tw, th = _reference_resize(source_image, width, height, ref_mode)
-            ref_latent = vae.encode(reference)
-            ref_items = [{"type": "image", "data": reference}]
-            tokens = clip.tokenize(final_prompt, minimax_ref_items=ref_items)
-            cond = clip.encode_from_tokens_scheduled(tokens)
-            cond = node_helpers.conditioning_set_values(cond, {
-                "minimax_refs": [{
+            ref_items = []
+            ref_blocks = []
+            reference_sizes = []
+            for reference_image in references:
+                reference, tw, th = _reference_resize(reference_image, width, height, ref_mode)
+                ref_items.append({"type": "image", "data": reference})
+                ref_blocks.append({
                     "kind": "image",
                     "latent_h": th // 16,
                     "latent_w": tw // 16,
-                    "latent": ref_latent,
-                }]
+                    "latent": vae.encode(reference),
+                })
+                reference_sizes.append(f"{tw}x{th}")
+            tokens = clip.tokenize(final_prompt, minimax_ref_items=ref_items)
+            cond = clip.encode_from_tokens_scheduled(tokens)
+            cond = node_helpers.conditioning_set_values(cond, {
+                "minimax_refs": ref_blocks,
             })
-            checkpoint_note = "Use a REF2VA checkpoint; this is reference-guided regeneration."
+            checkpoint_note = (
+                f"Use a REF2VA checkpoint; {len(references)} ordered reference image(s) encoded "
+                f"as {', '.join(reference_sizes)} and exposed as <Picture 1> through <Picture {len(references)}>."
+            )
 
         if natural_frames > 362:
             trained_note = "beyond the documented 124-362-frame training range"
@@ -714,6 +780,14 @@ class H3ReferenceEditPrepare:
                     "default": 5, "min": 1, "max": 4096, "step": 1,
                     "tooltip": "Used only when quality_profile is manual. Accepts any exact output count from 1 to 4096.",
                 }),
+                "reference_image_2": ("IMAGE", {"tooltip": "Optional <Picture 2> reference. Different dimensions are supported."}),
+                "reference_image_3": ("IMAGE", {"tooltip": "Optional <Picture 3> reference."}),
+                "reference_image_4": ("IMAGE", {"tooltip": "Optional <Picture 4> reference."}),
+                "reference_image_5": ("IMAGE", {"tooltip": "Optional <Picture 5> reference."}),
+                "reference_image_6": ("IMAGE", {"tooltip": "Optional <Picture 6> reference."}),
+                "reference_image_7": ("IMAGE", {"tooltip": "Optional <Picture 7> reference."}),
+                "reference_image_8": ("IMAGE", {"tooltip": "Optional <Picture 8> reference."}),
+                "reference_image_9": ("IMAGE", {"tooltip": "Optional <Picture 9> reference."}),
             },
         }
 
@@ -736,6 +810,14 @@ class H3ReferenceEditPrepare:
         reference_detail: str,
         optimize_for_still: bool,
         manual_frames: int = 5,
+        reference_image_2: Optional[torch.Tensor] = None,
+        reference_image_3: Optional[torch.Tensor] = None,
+        reference_image_4: Optional[torch.Tensor] = None,
+        reference_image_5: Optional[torch.Tensor] = None,
+        reference_image_6: Optional[torch.Tensor] = None,
+        reference_image_7: Optional[torch.Tensor] = None,
+        reference_image_8: Optional[torch.Tensor] = None,
+        reference_image_9: Optional[torch.Tensor] = None,
     ):
         return H3ImagePrepare().prepare(
             clip=clip,
@@ -751,6 +833,14 @@ class H3ReferenceEditPrepare:
             reference_size=reference_detail,
             source_image=source_image,
             manual_frames=manual_frames,
+            reference_image_2=reference_image_2,
+            reference_image_3=reference_image_3,
+            reference_image_4=reference_image_4,
+            reference_image_5=reference_image_5,
+            reference_image_6=reference_image_6,
+            reference_image_7=reference_image_7,
+            reference_image_8=reference_image_8,
+            reference_image_9=reference_image_9,
         )
 
 
