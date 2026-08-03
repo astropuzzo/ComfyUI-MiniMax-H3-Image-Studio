@@ -51,10 +51,10 @@ of `1,4,4,4,4` in a repeating pattern. A requested 20-frame context therefore
 uses the smallest covering packet, which naturally contains 22 decoded frames.
 
 Direct one-token generation remains experimental and can reproduce the soft,
-low-definition output seen in earlier tests. Controlled 5-versus-20-frame tests
-instead found frame 0 to be the useful still consistently. Every workflow now
-returns only frame 0; the selected 5- or 20-frame packet exists solely to provide
-the video model with temporal context during sampling.
+low-definition output seen in earlier tests. Controlled tests found frame 0 to
+be the useful still for T2I, REF2VA, and five-frame FL2VA edits. In 20-frame
+FL2VA I2I, however, the number of source-like transition frames varies by edit.
+The decoder therefore finds the first stable changed frame automatically.
 
 ## Image nodes
 
@@ -65,7 +65,7 @@ the video model with temporal context during sampling.
 - `MiniMax H3 Image • Resolution Preset` — safe H3-native aspect/size selection.
 - `MiniMax H3 Image • Sampling Preset` — 20-step quality or 12-step speed.
 - `MiniMax H3 Image • Exact Frame Decode` — decodes the temporal packet and keeps
-  frame 0 for image output.
+  the mode-aware output frame for image output.
 - `MiniMax H3 Image • Single Image Output` — receives only that still in the
   standard workflows, preventing image-feed extensions from showing every frame.
 Advanced resolution, sampling, and combined prepare nodes remain available for
@@ -77,12 +77,12 @@ All three image workflows expose only two useful choices:
 
 - `recommended | 5 frames` — best observed speed/quality balance and the default.
 - `maximum quality | 20 frames (slow)` — gives H3 more temporal context and may
-  improve frame 0, but is much slower, especially at high resolution.
+  improve the selected still, but is much slower, especially at high resolution.
 
 H3 denoises the complete temporal packet jointly, not frame by frame. A 20-frame
-run cannot stop early after frame 0 while preserving the same result. The plugin
-must compute the selected packet, then Exact Frame Decode discards everything
-except frame 0.
+run cannot stop early after one image while preserving the same result. The
+plugin must compute the selected packet, then Exact Frame Decode keeps frame 0
+for T2I/REF2VA and dynamically finds the first mature edit for 20-frame FL2VA I2I.
 
 ### Recommended combinations
 
@@ -151,7 +151,7 @@ intended as the final still.
 ## Test setup
 
 The measurements below include the complete temporal-packet cost even though the
-current workflows save only frame 0. Test setup:
+current workflows save only one mode-aware still. Test setup:
 
 - Windows 11 Pro with Stability Matrix
 - Intel Core i9-13900KF
@@ -257,7 +257,7 @@ REF2VA speed figure is published here.
 - H3 is fundamentally a video/audio model. This project adapts it for stills;
   it does not turn the checkpoint into a native image diffusion model.
 - The selected 5- or 20-frame temporal packet is fully computed because H3 does
-  not generate frames sequentially. Only frame 0 is retained afterward.
+  not generate frames sequentially. Only the mode-aware still is retained.
 - Direct one-token generation often has lower definition and stronger artifacts
   than the five-frame fast path and is not used by the new default.
 - Direct 2–8 MP generation increases canvas size and memory far more reliably
@@ -290,7 +290,9 @@ Uses FL2VA with the loaded picture encoded as the first-frame anchor. Source
 Fidelity controls how strongly the prompt wrapper asks H3 to preserve identity,
 pose, perspective, composition, and geometry; it is not a diffusion denoise
 slider. Exact Frame Decode keeps frame 0, and Single Image Output receives that
-single independent image.
+single independent image in the five-frame profile. For 20-frame FL2VA I2I it
+compares the decoded frames with frame 0 and keeps the earliest frame where the
+edit has reached a stable change plateau.
 
 ### Image Edit examples
 
@@ -343,8 +345,8 @@ reduce it when the requested change is being resisted.
 ### Exact decode and final selection
 
 All three examples send the sampled latent to Exact Frame Decode, not core
-`VAEDecode`. It decodes the selected temporal packet and immediately keeps frame
-0. Single Image Output therefore receives one image. Keep
+`VAEDecode`. It decodes the selected temporal packet and immediately keeps the
+mode-aware frame. Single Image Output therefore receives one image. Keep
 `emit_candidate_batch` disabled for ordinary use.
 
 ## Graph
