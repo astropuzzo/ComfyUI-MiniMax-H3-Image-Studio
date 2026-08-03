@@ -60,6 +60,7 @@
         1
       ],
       "quality_profile": "recommended | 20 frames",
+      "output_mode": "first frame | fast 5-frame packet",
       "source_fidelity": 0.75,
       "source_fit": "crop_center",
       "reference_detail": "match_generation_area",

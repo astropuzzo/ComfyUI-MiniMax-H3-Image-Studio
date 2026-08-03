@@ -44,6 +44,7 @@
         1
       ],
       "quality_profile": "recommended | 20 frames",
+      "output_mode": "first frame | fast 5-frame packet",
       "optimize_for_still": true
     }
   },

@@ -46,6 +46,9 @@ ASPECT_RATIOS: Dict[str, Tuple[int, int]] = {
 MANUAL_FRAME_PROFILE = "manual frames | exact value below"
 LEGACY_MANUAL_FRAME_PROFILE = "manual frames | use value below (17k+5)"
 MANUAL_SAMPLING_PROFILE = "manual steps | official sampler"
+FIRST_FRAME_MODE = "first frame | fast 5-frame packet"
+LEGACY_OUTPUT_MODE = "legacy | use quality profile"
+OUTPUT_MODES = [FIRST_FRAME_MODE, LEGACY_OUTPUT_MODE]
 
 FRAME_PRESETS: Dict[str, Optional[int]] = {
     "maximum speed | 5 frames (banding risk)": 5,
@@ -202,9 +205,17 @@ def _latent_t_for_frame_count(frame_count: int) -> Tuple[int, int]:
     return latent_t, _decoded_frames_for_latent_t(latent_t)
 
 
-def _empty_h3_av_latent(width: int, height: int, length: int, batch_size: int = 1):
-    requested_frames = max(1, int(length))
-    latent_t, natural_frames = _latent_t_for_frame_count(requested_frames)
+def _empty_h3_av_latent(
+    width: int,
+    height: int,
+    length: int,
+    batch_size: int = 1,
+    output_frames: Optional[int] = None,
+):
+    internal_frames = max(1, int(length))
+    latent_t, natural_frames = _latent_t_for_frame_count(internal_frames)
+    requested_frames = internal_frames if output_frames is None else max(1, int(output_frames))
+    requested_frames = min(requested_frames, natural_frames)
     duration = natural_frames / FPS
     audio_t = max(1, round(duration * AUDIO_LATENT_FPS))
     device = comfy.model_management.intermediate_device()
@@ -498,6 +509,10 @@ class H3ImagePrepare:
                     "step": 1,
                     "tooltip": "Used only by the manual quality profile. Accepts any exact output count from 1 to 4096.",
                 }),
+                "output_mode": (OUTPUT_MODES, {
+                    "default": FIRST_FRAME_MODE,
+                    "tooltip": "Fast mode samples H3's minimum stable five-frame temporal packet and outputs only frame 0. Legacy preserves the selected multi-frame quality profile.",
+                }),
             },
         }
 
@@ -529,12 +544,34 @@ class H3ImagePrepare:
         reference_image_7: Optional[torch.Tensor] = None,
         reference_image_8: Optional[torch.Tensor] = None,
         reference_image_9: Optional[torch.Tensor] = None,
+        output_mode: Optional[str] = None,
     ):
         width = _round_to_multiple(width, CANVAS_MULTIPLE)
         height = _round_to_multiple(height, CANVAS_MULTIPLE)
-        legacy_single_frame = frame_preset == "1 frame | forced single frame (unsupported)"
-        length, manual_frame_note = _resolve_frame_count(frame_preset, manual_frames)
-        latent, requested_frames, natural_frames = _empty_h3_av_latent(width, height, length)
+        # Old API/UI workflows do not contain output_mode. Keep their exact
+        # multi-frame behavior while newly created nodes serialize the First
+        # Frame default exposed by INPUT_TYPES.
+        if output_mode is None:
+            output_mode = LEGACY_OUTPUT_MODE
+        if output_mode == FIRST_FRAME_MODE:
+            internal_frames = 5
+            output_frames = 1
+            manual_frame_note = ""
+            legacy_single_frame = False
+            output_mode_note = (
+                "First-frame mode samples the minimum stable five-frame H3 packet and emits frame 0 only; "
+                "H3 denoises temporal tokens jointly, so a 20-frame run cannot be stopped after one frame"
+            )
+        elif output_mode == LEGACY_OUTPUT_MODE:
+            internal_frames, manual_frame_note = _resolve_frame_count(frame_preset, manual_frames)
+            output_frames = internal_frames
+            legacy_single_frame = frame_preset == "1 frame | forced single frame (unsupported)"
+            output_mode_note = "Legacy mode preserves the selected multi-frame quality profile"
+        else:
+            raise ValueError(f"Unknown H3 image output mode: {output_mode}")
+        latent, requested_frames, natural_frames = _empty_h3_av_latent(
+            width, height, internal_frames, output_frames=output_frames
+        )
         additional_references = (
             reference_image_2, reference_image_3, reference_image_4, reference_image_5,
             reference_image_6, reference_image_7, reference_image_8, reference_image_9,
@@ -611,9 +648,10 @@ class H3ImagePrepare:
             else f"temporal latent naturally decodes {natural_frames} frames; H3 Exact Frame Decode crops to {requested_frames}"
         )
         info = (
-            f"Mode: {mode} | canvas {width}×{height} | requested {requested_frames} frames | {decode_note} | "
-            f"{trained_note}. {checkpoint_note} Decode only the video latent; the audio VAE is unnecessary for image output."
-            f"{legacy_note}{manual_note}{_prompt_warning(prompt)}"
+            f"Mode: {mode} | output mode: {output_mode} | canvas {width}×{height} | "
+            f"internal packet {natural_frames} frames | requested output {requested_frames} | {decode_note} | "
+            f"{trained_note}. {checkpoint_note} Decode only the video latent; the audio VAE is unnecessary for image output. "
+            f"{output_mode_note}.{legacy_note}{manual_note}{_prompt_warning(prompt)}"
         )
         return cond, latent, fitted_source, requested_frames, final_prompt, info
 
@@ -643,6 +681,10 @@ class H3TextToImagePrepare:
                     "default": 5, "min": 1, "max": 4096, "step": 1,
                     "tooltip": "Used only when quality_profile is manual. Accepts any exact output count from 1 to 4096.",
                 }),
+                "output_mode": (OUTPUT_MODES, {
+                    "default": FIRST_FRAME_MODE,
+                    "tooltip": "Fast mode returns frame 0 from a five-frame internal packet. Legacy uses quality_profile and the existing multi-frame workflow.",
+                }),
             },
         }
 
@@ -660,6 +702,7 @@ class H3TextToImagePrepare:
         quality_profile: str,
         optimize_for_still: bool,
         manual_frames: int = 5,
+        output_mode: Optional[str] = None,
     ):
         cond, latent, _source, frames, image_prompt, info = H3ImagePrepare().prepare(
             clip=clip,
@@ -675,6 +718,7 @@ class H3TextToImagePrepare:
             reference_size="match_generation_area",
             source_image=None,
             manual_frames=manual_frames,
+            output_mode=output_mode,
         )
         return cond, latent, frames, image_prompt, info
 
@@ -708,6 +752,10 @@ class H3ImageToImagePrepare:
                     "default": 5, "min": 1, "max": 4096, "step": 1,
                     "tooltip": "Used only when quality_profile is manual. Accepts any exact output count from 1 to 4096.",
                 }),
+                "output_mode": (OUTPUT_MODES, {
+                    "default": FIRST_FRAME_MODE,
+                    "tooltip": "Fast mode returns frame 0 from a five-frame internal packet. Legacy uses quality_profile and the existing multi-frame workflow.",
+                }),
             },
         }
 
@@ -729,6 +777,7 @@ class H3ImageToImagePrepare:
         source_fit: str,
         optimize_for_still: bool,
         manual_frames: int = 5,
+        output_mode: Optional[str] = None,
     ):
         return H3ImagePrepare().prepare(
             clip=clip,
@@ -744,6 +793,7 @@ class H3ImageToImagePrepare:
             reference_size="match_generation_area",
             source_image=source_image,
             manual_frames=manual_frames,
+            output_mode=output_mode,
         )
 
 
@@ -779,6 +829,10 @@ class H3ReferenceEditPrepare:
                 "manual_frames": ("INT", {
                     "default": 5, "min": 1, "max": 4096, "step": 1,
                     "tooltip": "Used only when quality_profile is manual. Accepts any exact output count from 1 to 4096.",
+                }),
+                "output_mode": (OUTPUT_MODES, {
+                    "default": FIRST_FRAME_MODE,
+                    "tooltip": "Fast mode returns frame 0 from a five-frame internal packet. Legacy uses quality_profile and the existing multi-frame workflow.",
                 }),
                 "reference_image_2": ("IMAGE", {"tooltip": "Optional <Picture 2> reference. Different dimensions are supported."}),
                 "reference_image_3": ("IMAGE", {"tooltip": "Optional <Picture 3> reference."}),
@@ -818,6 +872,7 @@ class H3ReferenceEditPrepare:
         reference_image_7: Optional[torch.Tensor] = None,
         reference_image_8: Optional[torch.Tensor] = None,
         reference_image_9: Optional[torch.Tensor] = None,
+        output_mode: Optional[str] = None,
     ):
         return H3ImagePrepare().prepare(
             clip=clip,
@@ -841,6 +896,7 @@ class H3ReferenceEditPrepare:
             reference_image_7=reference_image_7,
             reference_image_8=reference_image_8,
             reference_image_9=reference_image_9,
+            output_mode=output_mode,
         )
 
 

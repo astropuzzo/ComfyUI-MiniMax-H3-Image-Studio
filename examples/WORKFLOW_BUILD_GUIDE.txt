@@ -19,6 +19,28 @@ All workflows use:
 - MiniMax H3 Image - Exact Frame Decode
 - MiniMax H3 Image - Single Image Output
 
+OUTPUT MODES
+============
+
+Use first frame | fast 5-frame packet for normal still-image output. H3 samples
+its minimum stable five-frame temporal packet, Exact Frame Decode keeps frame 0,
+and Single Image Output receives only that image. The quality_profile control is
+ignored in this mode.
+
+Use legacy | use quality profile to reproduce the pre-patch workflow. Legacy
+samples the selected quality_profile or manual frame count, decodes every
+requested frame, and lets Single Image Output rank them.
+
+Backend/API workflows that omit output_mode fall back to Legacy. Newly created
+nodes default to First Frame. When reopening an old UI workflow, check the new
+control explicitly because ComfyUI may insert its new default into saved widgets.
+
+H3 does not generate temporal frames sequentially: every diffusion step attends
+to the complete latent packet. A 20-frame run therefore cannot stop after frame
+0 while retaining the exact first-frame result of that 20-frame run. The fast
+mode removes the unnecessary 20-frame packet and uses the proven five-frame
+minimum instead.
+
 COMMON CONNECTIONS
 ==================
 
@@ -41,13 +63,14 @@ TEXT TO IMAGE
 Use MiniMax H3 Image - Text to Image with FL2VA.
 Connect Resolution Preset width/height to the image node.
 
-Validated profiles:
-- Maximum speed: 5 frames, fast preview / 12 steps
-  Fastest, but banding and grid artifacts are more likely.
-- Recommended speed: 20 frames, fast preview / 12 steps
-  Best observed balance of speed, stability, and candidate quality.
-- Maximum quality: 20 frames, official quality / 20 steps
-  Best observed quality, with longer generation time.
+Recommended new still setup:
+- First-frame output mode, fast preview / 12 steps
+  Samples five internal frames and saves frame 0 only.
+
+Legacy comparison profiles:
+- 5 frames, fast preview / 12 steps
+- 20 frames, fast preview / 12 steps
+- 20 frames, official quality / 20 steps
 
 Use stable_quality or best_quality in Single Image Output. Keep
 emit_candidate_batch disabled unless inspecting candidate frames.
@@ -80,7 +103,8 @@ or composition drifts; reduce it when H3 refuses the requested change.
 EXACT MANUAL FRAMES
 ===================
 
-Select manual frames / exact value below and enter any integer from 1 to 4096.
+First select legacy | use quality profile. Then select manual frames / exact
+value below and enter any integer from 1 to 4096.
 The node creates the smallest temporal latent covering that request. H3's VAE
 may naturally decode a few extra frames for a partial packet; Exact Frame Decode
 crops them to the precise requested count. Do not replace it with core VAEDecode
