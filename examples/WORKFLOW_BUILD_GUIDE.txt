@@ -1,4 +1,4 @@
-MINIMAX H3 IMAGE WORKFLOW V11
+MINIMAX H3 IMAGE WORKFLOW V12
 =============================
 
 This is an experimental, entirely AI-coded project. Review and test every
@@ -18,6 +18,16 @@ All workflows use:
 - SamplerCustomAdvanced
 - MiniMax H3 Image - Exact Frame Decode
 - MiniMax H3 Image - Single Image Output
+
+FRAME PROFILES
+==============
+
+- recommended | 5 frames: best speed/quality balance and the default.
+- maximum quality | 20 frames (slow): more temporal context, potentially higher
+  quality, and a much longer generation time.
+
+Both profiles return frame 0 only. H3 processes the whole temporal packet jointly,
+so a 20-frame run cannot stop early while retaining the same frame-0 result.
 
 COMMON CONNECTIONS
 ==================
@@ -41,13 +51,10 @@ TEXT TO IMAGE
 Use MiniMax H3 Image - Text to Image with FL2VA.
 Connect Resolution Preset width/height to the image node.
 
-Validated profiles:
-- Maximum speed: 5 frames, fast preview / 12 steps
-  Fastest, but banding and grid artifacts are more likely.
-- Recommended speed: 20 frames, fast preview / 12 steps
-  Best observed balance of speed, stability, and candidate quality.
-- Maximum quality: 20 frames, official quality / 20 steps
-  Best observed quality, with longer generation time.
+Recommended setup:
+- 5 frames + quality / 20 steps for the standard quality preset.
+- 5 frames + speed / 12 steps for faster generation.
+- 20 frames + quality / 20 steps for maximum quality when time is secondary.
 
 Use stable_quality or best_quality in Single Image Output. Keep
 emit_candidate_batch disabled unless inspecting candidate frames.
@@ -70,21 +77,12 @@ REFERENCE EDIT
 
 Use MiniMax H3 Image - Reference Edit with REF2VA.
 Connect LoadImage to Resolution Preset and Reference Edit as above.
-Use reference detail / beta / 20 steps as the starting sampling profile.
+Use quality / 20 steps as the starting sampling profile.
 
 Reference Edit regenerates from visual reference features rather than using the
 source as an exact first-frame anchor. It is useful for semantic changes such as
 clothing, material, style, or environment. Increase Source Fidelity when identity
 or composition drifts; reduce it when H3 refuses the requested change.
-
-EXACT MANUAL FRAMES
-===================
-
-Select manual frames / exact value below and enter any integer from 1 to 4096.
-The node creates the smallest temporal latent covering that request. H3's VAE
-may naturally decode a few extra frames for a partial packet; Exact Frame Decode
-crops them to the precise requested count. Do not replace it with core VAEDecode
-when exact arbitrary frame counts matter.
 
 RESOLUTION
 ==========

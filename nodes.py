@@ -43,33 +43,11 @@ ASPECT_RATIOS: Dict[str, Tuple[int, int]] = {
     "21:9 ultrawide": (21, 9),
 }
 
-MANUAL_FRAME_PROFILE = "manual frames | exact value below"
-LEGACY_MANUAL_FRAME_PROFILE = "manual frames | use value below (17k+5)"
-MANUAL_SAMPLING_PROFILE = "manual steps | official sampler"
-
-FRAME_PRESETS: Dict[str, Optional[int]] = {
-    "maximum speed | 5 frames (banding risk)": 5,
-    "recommended | 20 frames": 20,
-    "image balanced | 56 frames": 56,
-    "video-trained | 124 frames (slow)": 124,
-    "video-trained+ | 192 frames (very slow)": 192,
-    MANUAL_FRAME_PROFILE: None,
-}
-
-# Old workflows must continue to load, but these values are deliberately not
-# shown in the UI. H3's native ComfyUI implementation has a five-frame minimum.
-LEGACY_FRAME_PRESETS: Dict[str, int] = {
-    "image native | 5 frames (recommended)": 5,
-    "image+ | 22 frames": 22,
-    "1 frame | forced single frame (unsupported)": 5,
-    "5 frames | minimal safe packet": 5,
-    "22 frames | safer fallback": 22,
-    "39 frames | quick": 39,
-    "56 frames | balanced": 56,
-    "73 frames | quality": 73,
-    "90 frames | high quality": 90,
-    "107 frames | near-native": 107,
-    "124 frames | native trained minimum": 124,
+RECOMMENDED_FRAME_PROFILE = "recommended | 5 frames"
+MAX_QUALITY_FRAME_PROFILE = "maximum quality | 20 frames (slow)"
+FRAME_PRESETS: Dict[str, int] = {
+    RECOMMENDED_FRAME_PROFILE: 5,
+    MAX_QUALITY_FRAME_PROFILE: 20,
 }
 
 RESOLUTION_PROFILES: Dict[str, Optional[float]] = {
@@ -84,10 +62,8 @@ RESOLUTION_PROFILES: Dict[str, Optional[float]] = {
 }
 
 SAMPLING_PROFILES: Dict[str, Tuple[str, str, Optional[int]]] = {
-    "official quality | 20 steps": ("res_multistep", "simple", 20),
-    "fast preview | 12 steps": ("res_multistep", "simple", 12),
-    "reference detail | beta, 20 steps": ("res_multistep", "beta", 20),
-    MANUAL_SAMPLING_PROFILE: ("res_multistep", "simple", None),
+    "quality | 20 steps": ("res_multistep", "simple", 20),
+    "speed | 12 steps": ("res_multistep", "simple", 12),
 }
 
 VIDEO_PROMPT_RE = re.compile(
@@ -169,18 +145,10 @@ def _resize_image(image: torch.Tensor, width: int, height: int, fit_mode: str) -
     return padded.movedim(1, -1).clamp(0.0, 1.0)
 
 
-def _resolve_frame_count(frame_preset: str, manual_frames: int) -> Tuple[int, str]:
-    """Resolve a quality preset or an exact manual output-frame request."""
-    if frame_preset in (MANUAL_FRAME_PROFILE, LEGACY_MANUAL_FRAME_PROFILE):
-        requested = max(1, int(manual_frames))
-        return requested, f"exact manual output count {requested}"
+def _resolve_frame_count(frame_preset: str) -> int:
+    """Resolve one of the two still-image temporal-context profiles."""
     if frame_preset in FRAME_PRESETS:
-        value = FRAME_PRESETS[frame_preset]
-        if value is None:
-            raise ValueError(f"Manual H3 frame profile requires manual_frames, received {manual_frames}")
-        return int(value), ""
-    if frame_preset in LEGACY_FRAME_PRESETS:
-        return LEGACY_FRAME_PRESETS[frame_preset], ""
+        return FRAME_PRESETS[frame_preset]
     raise ValueError(f"Unknown H3 image quality profile: {frame_preset}")
 
 
@@ -202,9 +170,17 @@ def _latent_t_for_frame_count(frame_count: int) -> Tuple[int, int]:
     return latent_t, _decoded_frames_for_latent_t(latent_t)
 
 
-def _empty_h3_av_latent(width: int, height: int, length: int, batch_size: int = 1):
-    requested_frames = max(1, int(length))
-    latent_t, natural_frames = _latent_t_for_frame_count(requested_frames)
+def _empty_h3_av_latent(
+    width: int,
+    height: int,
+    length: int,
+    batch_size: int = 1,
+    output_frames: Optional[int] = None,
+):
+    internal_frames = max(1, int(length))
+    latent_t, natural_frames = _latent_t_for_frame_count(internal_frames)
+    requested_frames = internal_frames if output_frames is None else max(1, int(output_frames))
+    requested_frames = min(requested_frames, natural_frames)
     duration = natural_frames / FPS
     audio_t = max(1, round(duration * AUDIO_LATENT_FPS))
     device = comfy.model_management.intermediate_device()
@@ -474,7 +450,10 @@ class H3ImagePrepare:
                 "height": ("INT", {"default": 768, "min": 32, "max": 16384, "step": 32}),
                 "frame_preset": (
                     list(FRAME_PRESETS.keys()),
-                    {"default": "recommended | 20 frames"},
+                    {
+                        "default": RECOMMENDED_FRAME_PROFILE,
+                        "tooltip": "H3 is a video model, so still quality depends on temporal context. 5 frames is the recommended speed/quality balance; 20 frames is much slower and may improve maximum quality. Only frame 0 is returned.",
+                    },
                 ),
                 "optimize_prompt": ("BOOLEAN", {"default": True}),
                 "preserve_strength": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05}),
@@ -491,13 +470,6 @@ class H3ImagePrepare:
                 "reference_image_7": ("IMAGE",),
                 "reference_image_8": ("IMAGE",),
                 "reference_image_9": ("IMAGE",),
-                "manual_frames": ("INT", {
-                    "default": 5,
-                    "min": 1,
-                    "max": 4096,
-                    "step": 1,
-                    "tooltip": "Used only by the manual quality profile. Accepts any exact output count from 1 to 4096.",
-                }),
             },
         }
 
@@ -520,7 +492,6 @@ class H3ImagePrepare:
         source_fit: str,
         reference_size: str,
         source_image: Optional[torch.Tensor] = None,
-        manual_frames: int = 5,
         reference_image_2: Optional[torch.Tensor] = None,
         reference_image_3: Optional[torch.Tensor] = None,
         reference_image_4: Optional[torch.Tensor] = None,
@@ -532,9 +503,11 @@ class H3ImagePrepare:
     ):
         width = _round_to_multiple(width, CANVAS_MULTIPLE)
         height = _round_to_multiple(height, CANVAS_MULTIPLE)
-        legacy_single_frame = frame_preset == "1 frame | forced single frame (unsupported)"
-        length, manual_frame_note = _resolve_frame_count(frame_preset, manual_frames)
-        latent, requested_frames, natural_frames = _empty_h3_av_latent(width, height, length)
+        internal_frames = _resolve_frame_count(frame_preset)
+        output_frames = 1
+        latent, requested_frames, natural_frames = _empty_h3_av_latent(
+            width, height, internal_frames, output_frames=output_frames
+        )
         additional_references = (
             reference_image_2, reference_image_3, reference_image_4, reference_image_5,
             reference_image_6, reference_image_7, reference_image_8, reference_image_9,
@@ -603,17 +576,16 @@ class H3ImagePrepare:
             trained_note = "inside the documented 124-362-frame training range"
         else:
             trained_note = "short experimental temporal packet chosen to reduce image-mode compute"
-        legacy_note = " Legacy one-frame workflow was automatically upgraded to the five-frame minimum." if legacy_single_frame else ""
-        manual_note = f" {manual_frame_note}." if manual_frame_note else ""
         decode_note = (
             f"exact {requested_frames}-frame output"
             if requested_frames == natural_frames
             else f"temporal latent naturally decodes {natural_frames} frames; H3 Exact Frame Decode crops to {requested_frames}"
         )
         info = (
-            f"Mode: {mode} | canvas {width}×{height} | requested {requested_frames} frames | {decode_note} | "
-            f"{trained_note}. {checkpoint_note} Decode only the video latent; the audio VAE is unnecessary for image output."
-            f"{legacy_note}{manual_note}{_prompt_warning(prompt)}"
+            f"Mode: {mode} | temporal profile: {internal_frames} frames | canvas {width}×{height} | "
+            f"internal packet {natural_frames} frames | requested output {requested_frames} | {decode_note} | "
+            f"{trained_note}. {checkpoint_note} Decode only the video latent; the audio VAE is unnecessary for image output. "
+            f"Only frame 0 is returned; the other frames provide joint temporal context during sampling.{_prompt_warning(prompt)}"
         )
         return cond, latent, fitted_source, requested_frames, final_prompt, info
 
@@ -631,17 +603,14 @@ class H3TextToImagePrepare:
                 "height": ("INT", {"default": 768, "min": 32, "max": 16384, "step": 32}),
                 "quality_profile": (
                     list(FRAME_PRESETS.keys()),
-                    {"default": "recommended | 20 frames"},
+                    {
+                        "default": RECOMMENDED_FRAME_PROFILE,
+                        "tooltip": "5 frames is recommended for the best speed/quality balance. 20 frames gives H3 more temporal context and may improve quality, but is much slower. The node always returns frame 0 only.",
+                    },
                 ),
                 "optimize_for_still": ("BOOLEAN", {
                     "default": True,
                     "tooltip": "Adds a locked-camera still-image prompt wrapper. It does not change frames, resolution, steps, sampler, or model weights.",
-                }),
-            },
-            "optional": {
-                "manual_frames": ("INT", {
-                    "default": 5, "min": 1, "max": 4096, "step": 1,
-                    "tooltip": "Used only when quality_profile is manual. Accepts any exact output count from 1 to 4096.",
                 }),
             },
         }
@@ -659,7 +628,6 @@ class H3TextToImagePrepare:
         height: int,
         quality_profile: str,
         optimize_for_still: bool,
-        manual_frames: int = 5,
     ):
         cond, latent, _source, frames, image_prompt, info = H3ImagePrepare().prepare(
             clip=clip,
@@ -674,7 +642,6 @@ class H3TextToImagePrepare:
             source_fit="crop_center",
             reference_size="match_generation_area",
             source_image=None,
-            manual_frames=manual_frames,
         )
         return cond, latent, frames, image_prompt, info
 
@@ -694,19 +661,16 @@ class H3ImageToImagePrepare:
                 "height": ("INT", {"default": 768, "min": 32, "max": 16384, "step": 32}),
                 "quality_profile": (
                     list(FRAME_PRESETS.keys()),
-                    {"default": "recommended | 20 frames"},
+                    {
+                        "default": RECOMMENDED_FRAME_PROFILE,
+                        "tooltip": "5 frames is recommended for the best speed/quality balance. 20 frames gives H3 more temporal context and may improve quality, but is much slower. The node always returns frame 0 only.",
+                    },
                 ),
                 "source_fidelity": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "source_fit": (["crop_center", "contain_pad", "stretch"], {"default": "crop_center"}),
                 "optimize_for_still": ("BOOLEAN", {
                     "default": True,
                     "tooltip": "Adds a locked-camera still-image prompt wrapper and source-preservation language. Sampling settings are unchanged.",
-                }),
-            },
-            "optional": {
-                "manual_frames": ("INT", {
-                    "default": 5, "min": 1, "max": 4096, "step": 1,
-                    "tooltip": "Used only when quality_profile is manual. Accepts any exact output count from 1 to 4096.",
                 }),
             },
         }
@@ -728,7 +692,6 @@ class H3ImageToImagePrepare:
         source_fidelity: float,
         source_fit: str,
         optimize_for_still: bool,
-        manual_frames: int = 5,
     ):
         return H3ImagePrepare().prepare(
             clip=clip,
@@ -743,7 +706,6 @@ class H3ImageToImagePrepare:
             source_fit=source_fit,
             reference_size="match_generation_area",
             source_image=source_image,
-            manual_frames=manual_frames,
         )
 
 
@@ -762,7 +724,10 @@ class H3ReferenceEditPrepare:
                 "height": ("INT", {"default": 768, "min": 32, "max": 16384, "step": 32}),
                 "quality_profile": (
                     list(FRAME_PRESETS.keys()),
-                    {"default": "recommended | 20 frames"},
+                    {
+                        "default": RECOMMENDED_FRAME_PROFILE,
+                        "tooltip": "5 frames is recommended for the best speed/quality balance. 20 frames gives H3 more temporal context and may improve quality, but is much slower. The node always returns frame 0 only.",
+                    },
                 ),
                 "source_fidelity": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "source_fit": (["crop_center", "contain_pad", "stretch"], {"default": "crop_center"}),
@@ -776,10 +741,6 @@ class H3ReferenceEditPrepare:
                 }),
             },
             "optional": {
-                "manual_frames": ("INT", {
-                    "default": 5, "min": 1, "max": 4096, "step": 1,
-                    "tooltip": "Used only when quality_profile is manual. Accepts any exact output count from 1 to 4096.",
-                }),
                 "reference_image_2": ("IMAGE", {"tooltip": "Optional <Picture 2> reference. Different dimensions are supported."}),
                 "reference_image_3": ("IMAGE", {"tooltip": "Optional <Picture 3> reference."}),
                 "reference_image_4": ("IMAGE", {"tooltip": "Optional <Picture 4> reference."}),
@@ -809,7 +770,6 @@ class H3ReferenceEditPrepare:
         source_fit: str,
         reference_detail: str,
         optimize_for_still: bool,
-        manual_frames: int = 5,
         reference_image_2: Optional[torch.Tensor] = None,
         reference_image_3: Optional[torch.Tensor] = None,
         reference_image_4: Optional[torch.Tensor] = None,
@@ -832,7 +792,6 @@ class H3ReferenceEditPrepare:
             source_fit=source_fit,
             reference_size=reference_detail,
             source_image=source_image,
-            manual_frames=manual_frames,
             reference_image_2=reference_image_2,
             reference_image_3=reference_image_3,
             reference_image_4=reference_image_4,
@@ -1185,17 +1144,11 @@ class H3ImageSamplingPreset:
                 "model": ("MODEL",),
                 "sampling_profile": (
                     list(SAMPLING_PROFILES.keys()),
-                    {"default": "official quality | 20 steps"},
+                    {
+                        "default": "quality | 20 steps",
+                        "tooltip": "20 steps is recommended for maximum quality. Choose 12 steps when generation speed matters more.",
+                    },
                 ),
-            },
-            "optional": {
-                "manual_steps": ("INT", {
-                    "default": 20,
-                    "min": 1,
-                    "max": 10000,
-                    "step": 1,
-                    "tooltip": "Used only by the manual-steps profile. It keeps the official res_multistep + simple sampling path.",
-                }),
             },
         }
 
@@ -1204,10 +1157,8 @@ class H3ImageSamplingPreset:
     FUNCTION = "build"
     CATEGORY = CATEGORY
 
-    def build(self, model, sampling_profile: str, manual_steps: int = 20):
+    def build(self, model, sampling_profile: str):
         sampler_name, scheduler, steps = SAMPLING_PROFILES[sampling_profile]
-        if steps is None:
-            steps = max(1, int(manual_steps))
         shifted_model, sampler, sigmas, info = H3SamplingSettings().build(
             model=model,
             sampler_name=sampler_name,
@@ -1219,8 +1170,7 @@ class H3ImageSamplingPreset:
             beta_alpha=0.6,
             beta_beta=0.6,
         )
-        manual_note = f" | manual_steps={steps}" if sampling_profile == MANUAL_SAMPLING_PROFILE else ""
-        return shifted_model, sampler, sigmas, f"profile={sampling_profile}{manual_note} | {info}"
+        return shifted_model, sampler, sigmas, f"profile={sampling_profile} | {info}"
 
 
 NODE_CLASS_MAPPINGS = {
@@ -1244,7 +1194,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "H3TextToImagePrepare": "MiniMax H3 Image • Text to Image",
     "H3ImageToImagePrepare": "MiniMax H3 Image • Image to Image",
     "H3ReferenceEditPrepare": "MiniMax H3 Image • Reference Edit",
-    "H3ImagePrepare": "MiniMax H3 Image • Legacy Combined Prepare",
+    "H3ImagePrepare": "MiniMax H3 Image • Advanced Combined Prepare",
     "H3ImageDecode": "MiniMax H3 Image • Exact Frame Decode",
     "H3ImageFrameSelector": "MiniMax H3 Image • Single Image Output",
 }

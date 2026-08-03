@@ -55,7 +55,7 @@
         "4",
         1
       ],
-      "quality_profile": "recommended | 20 frames",
+      "quality_profile": "recommended | 5 frames",
       "source_fidelity": 0.75,
       "source_fit": "crop_center",
       "optimize_for_still": true
@@ -87,7 +87,7 @@
         "1",
         0
       ],
-      "sampling_profile": "official quality | 20 steps"
+      "sampling_profile": "quality | 20 steps"
     }
   },
   "10": {

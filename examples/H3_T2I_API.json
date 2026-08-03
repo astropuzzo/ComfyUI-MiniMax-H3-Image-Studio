@@ -43,7 +43,7 @@
         "4",
         1
       ],
-      "quality_profile": "recommended | 20 frames",
+      "quality_profile": "recommended | 5 frames",
       "optimize_for_still": true
     }
   },
@@ -73,7 +73,7 @@
         "1",
         0
       ],
-      "sampling_profile": "fast preview | 12 steps"
+      "sampling_profile": "speed | 12 steps"
     }
   },
   "10": {
