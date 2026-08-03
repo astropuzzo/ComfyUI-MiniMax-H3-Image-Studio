@@ -1,0 +1,143 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "type": "minimax",
+      "device": "default"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "H3ImageResolutionPreset",
+    "inputs": {
+      "aspect_ratio": "16:9 landscape",
+      "resolution_profile": "native detail | 0.98 MP"
+    }
+  },
+  "5": {
+    "class_type": "H3TextToImagePrepare",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "prompt": "A finished cinematic editorial portrait of an adult woman, precise facial detail and natural skin texture, controlled Rembrandt studio lighting, sharp eyes, clean dark background, shallow depth of field, premium fashion photography.",
+      "width": [
+        "4",
+        0
+      ],
+      "height": [
+        "4",
+        1
+      ],
+      "quality_profile": "recommended | 20 frames",
+      "optimize_for_still": true
+    }
+  },
+  "6": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 1
+    }
+  },
+  "7": {
+    "class_type": "BasicGuider",
+    "inputs": {
+      "model": [
+        "8",
+        0
+      ],
+      "conditioning": [
+        "5",
+        0
+      ]
+    }
+  },
+  "8": {
+    "class_type": "H3ImageSamplingPreset",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "sampling_profile": "fast preview | 12 steps"
+    }
+  },
+  "10": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "6",
+        0
+      ],
+      "guider": [
+        "7",
+        0
+      ],
+      "sampler": [
+        "8",
+        1
+      ],
+      "sigmas": [
+        "8",
+        2
+      ],
+      "latent_image": [
+        "5",
+        1
+      ]
+    }
+  },
+  "11": {
+    "class_type": "H3ImageDecode",
+    "inputs": {
+      "samples": [
+        "10",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    }
+  },
+  "12": {
+    "class_type": "H3ImageFrameSelector",
+    "inputs": {
+      "frames": [
+        "11",
+        0
+      ],
+      "strategy": "best_quality",
+      "manual_index": 1,
+      "skip_first_frames": 0,
+      "candidate_start": 0.1,
+      "candidate_end": 0.9,
+      "similarity_weight": 0.6,
+      "top_k": 4
+    }
+  },
+  "13": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "12",
+        0
+      ],
+      "filename_prefix": "MiniMax_H3_Image"
+    }
+  }
+}

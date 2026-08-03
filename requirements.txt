@@ -1,0 +1,1 @@
+# No extra runtime dependencies. Uses PyTorch and ComfyUI's native MiniMax H3 support.

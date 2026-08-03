@@ -1,0 +1,168 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "type": "minimax",
+      "device": "default"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "H3ImageResolutionPreset",
+    "inputs": {
+      "aspect_ratio": "source image",
+      "resolution_profile": "native detail | 0.98 MP",
+      "source_image": [
+        "0",
+        0
+      ]
+    }
+  },
+  "5": {
+    "class_type": "H3ReferenceEditPrepare",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ],
+      "source_image": [
+        "0",
+        0
+      ],
+      "edit_instruction": "Change the outfit into a structured black high-fashion jacket with silver details while preserving the same person, face, pose, camera angle, and environment. The result is one sharp finished fashion photograph.",
+      "width": [
+        "4",
+        0
+      ],
+      "height": [
+        "4",
+        1
+      ],
+      "quality_profile": "recommended | 20 frames",
+      "source_fidelity": 0.75,
+      "source_fit": "crop_center",
+      "reference_detail": "match_generation_area",
+      "optimize_for_still": true
+    }
+  },
+  "6": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 1
+    }
+  },
+  "7": {
+    "class_type": "BasicGuider",
+    "inputs": {
+      "model": [
+        "8",
+        0
+      ],
+      "conditioning": [
+        "5",
+        0
+      ]
+    }
+  },
+  "8": {
+    "class_type": "H3ImageSamplingPreset",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "sampling_profile": "reference detail | beta, 20 steps"
+    }
+  },
+  "10": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "6",
+        0
+      ],
+      "guider": [
+        "7",
+        0
+      ],
+      "sampler": [
+        "8",
+        1
+      ],
+      "sigmas": [
+        "8",
+        2
+      ],
+      "latent_image": [
+        "5",
+        1
+      ]
+    }
+  },
+  "11": {
+    "class_type": "H3ImageDecode",
+    "inputs": {
+      "samples": [
+        "10",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    }
+  },
+  "12": {
+    "class_type": "H3ImageFrameSelector",
+    "inputs": {
+      "frames": [
+        "11",
+        0
+      ],
+      "strategy": "balanced_edit",
+      "manual_index": 1,
+      "skip_first_frames": 1,
+      "candidate_start": 0.2,
+      "candidate_end": 0.9,
+      "similarity_weight": 0.35,
+      "top_k": 4,
+      "source_image": [
+        "5",
+        2
+      ]
+    }
+  },
+  "13": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "12",
+        0
+      ],
+      "filename_prefix": "MiniMax_H3_Image"
+    }
+  },
+  "0": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "input.png"
+    }
+  }
+}

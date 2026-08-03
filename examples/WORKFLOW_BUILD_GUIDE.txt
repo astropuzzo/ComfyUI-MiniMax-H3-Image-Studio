@@ -1,0 +1,101 @@
+MINIMAX H3 IMAGE WORKFLOW V10
+=============================
+
+MODEL FAMILY
+============
+
+Text to Image and Image to Image use the FL2VA checkpoint.
+Reference Edit uses the separate REF2VA checkpoint.
+
+All workflows use:
+- Qwen3-VL MiniMax text encoder loaded with CLIPLoader type=minimax
+- minimax_h3_video_vae_fp16.safetensors
+- BasicGuider; H3 is CFG-distilled and does not need a negative CFG branch
+- SamplerCustomAdvanced
+- MiniMax H3 Image - Exact Frame Decode
+- MiniMax H3 Image - Single Image Output
+
+COMMON CONNECTIONS
+==================
+
+UNETLoader.MODEL -> Sampling Preset.model
+Sampling Preset.model -> BasicGuider.model
+Image Prepare.positive -> BasicGuider.conditioning
+RandomNoise.NOISE -> SamplerCustomAdvanced.noise
+BasicGuider.GUIDER -> SamplerCustomAdvanced.guider
+Sampling Preset.sampler -> SamplerCustomAdvanced.sampler
+Sampling Preset.sigmas -> SamplerCustomAdvanced.sigmas
+Image Prepare.h3_latent -> SamplerCustomAdvanced.latent_image
+SamplerCustomAdvanced.output -> Exact Frame Decode.samples
+VAELoader.VAE -> Exact Frame Decode.vae
+Exact Frame Decode.frames -> Single Image Output.frames
+Single Image Output.selected_image -> SaveImage.images
+
+TEXT TO IMAGE
+=============
+
+Use MiniMax H3 Image - Text to Image with FL2VA.
+Connect Resolution Preset width/height to the image node.
+
+Validated profiles:
+- Maximum speed: 5 frames, fast preview / 12 steps
+  Fastest, but banding and grid artifacts are more likely.
+- Recommended speed: 20 frames, fast preview / 12 steps
+  Best observed balance of speed, stability, and candidate quality.
+- Maximum quality: 20 frames, official quality / 20 steps
+  Best observed quality, with longer generation time.
+
+Use stable_quality or best_quality in Single Image Output. Keep
+emit_candidate_batch disabled unless inspecting candidate frames.
+
+IMAGE TO IMAGE
+==============
+
+Use MiniMax H3 Image - Image to Image with FL2VA.
+Connect LoadImage to:
+- Resolution Preset.source_image when using the source aspect ratio
+- Image to Image.source_image
+
+The source becomes a first-frame latent anchor. Source Fidelity changes the
+preservation language added to the prompt; it is not a denoise-strength control.
+Connect Image to Image.fitted_source to Single Image Output.source_image and use
+balanced_edit to rank both edit quality and source similarity.
+
+REFERENCE EDIT
+==============
+
+Use MiniMax H3 Image - Reference Edit with REF2VA.
+Connect LoadImage to Resolution Preset and Reference Edit as above.
+Use reference detail / beta / 20 steps as the starting sampling profile.
+
+Reference Edit regenerates from visual reference features rather than using the
+source as an exact first-frame anchor. It is useful for semantic changes such as
+clothing, material, style, or environment. Increase Source Fidelity when identity
+or composition drifts; reduce it when H3 refuses the requested change.
+
+EXACT MANUAL FRAMES
+===================
+
+Select manual frames / exact value below and enter any integer from 1 to 4096.
+The node creates the smallest temporal latent covering that request. H3's VAE
+may naturally decode a few extra frames for a partial packet; Exact Frame Decode
+crops them to the precise requested count. Do not replace it with core VAEDecode
+when exact arbitrary frame counts matter.
+
+RESOLUTION
+==========
+
+- balanced / 0.70 MP: faster draft
+- native detail / 0.98 MP: native-area final
+- 2, 4, 8 MP and custom 0.1-64 MP: unlocked experiments
+
+High resolution sharply increases VRAM, RAM, decode time, and pagefile pressure.
+It often adds canvas pixels without proportional learned detail. Enable
+limit_to_native_area for the conservative approximately 1 MP cap.
+
+MASKED EDIT LIMIT
+=================
+
+The released H3 checkpoints do not accept an inpainting mask. Generate an I2I or
+Reference Edit result, then blend it with MiniMax H3 - Masked Edit Composite.
+The mask is post-compositing and is not visible to the diffusion model.
