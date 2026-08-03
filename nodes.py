@@ -176,6 +176,7 @@ def _empty_h3_av_latent(
     length: int,
     batch_size: int = 1,
     output_frames: Optional[int] = None,
+    output_frame_index: int = 0,
 ):
     internal_frames = max(1, int(length))
     latent_t, natural_frames = _latent_t_for_frame_count(internal_frames)
@@ -191,6 +192,7 @@ def _empty_h3_av_latent(
         "samples": nested,
         "h3_requested_frames": requested_frames,
         "h3_natural_frames": natural_frames,
+        "h3_output_frame_index": max(0, int(output_frame_index)),
     }, requested_frames, natural_frames
 
 
@@ -452,7 +454,7 @@ class H3ImagePrepare:
                     list(FRAME_PRESETS.keys()),
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
-                        "tooltip": "H3 is a video model, so still quality depends on temporal context. 5 frames is the recommended speed/quality balance; 20 frames is much slower and may improve maximum quality. Only frame 0 is returned.",
+                        "tooltip": "H3 is a video model, so still quality depends on temporal context. 5 frames is the recommended speed/quality balance; 20 frames is much slower and may improve maximum quality. One mode-aware still is returned.",
                     },
                 ),
                 "optimize_prompt": ("BOOLEAN", {"default": True}),
@@ -505,8 +507,18 @@ class H3ImagePrepare:
         height = _round_to_multiple(height, CANVAS_MULTIPLE)
         internal_frames = _resolve_frame_count(frame_preset)
         output_frames = 1
+        # FL2VA frame 0 is conditioned by the exact source anchor. In a longer
+        # packet the first few decoded frames remain the source/transition and
+        # can hide a successful edit. Controlled 20-frame tests found decoded
+        # frame 3 to be the first stable edited still. The short five-frame path
+        # already edits frame 0 correctly; T2I and REF2VA do as well.
+        output_frame_index = 3 if mode == "image_to_image (FL2VA)" and internal_frames == 20 else 0
         latent, requested_frames, natural_frames = _empty_h3_av_latent(
-            width, height, internal_frames, output_frames=output_frames
+            width,
+            height,
+            internal_frames,
+            output_frames=output_frames,
+            output_frame_index=output_frame_index,
         )
         additional_references = (
             reference_image_2, reference_image_3, reference_image_4, reference_image_5,
@@ -585,7 +597,7 @@ class H3ImagePrepare:
             f"Mode: {mode} | temporal profile: {internal_frames} frames | canvas {width}×{height} | "
             f"internal packet {natural_frames} frames | requested output {requested_frames} | {decode_note} | "
             f"{trained_note}. {checkpoint_note} Decode only the video latent; the audio VAE is unnecessary for image output. "
-            f"Only frame 0 is returned; the other frames provide joint temporal context during sampling.{_prompt_warning(prompt)}"
+            f"Decoded frame {output_frame_index} is returned; the other frames provide joint temporal context during sampling.{_prompt_warning(prompt)}"
         )
         return cond, latent, fitted_source, requested_frames, final_prompt, info
 
@@ -605,7 +617,7 @@ class H3TextToImagePrepare:
                     list(FRAME_PRESETS.keys()),
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
-                        "tooltip": "5 frames is recommended for the best speed/quality balance. 20 frames gives H3 more temporal context and may improve quality, but is much slower. The node always returns frame 0 only.",
+                        "tooltip": "5 frames is recommended for the best speed/quality balance. 20 frames gives H3 more temporal context and may improve quality, but is much slower. Text-to-Image returns frame 0.",
                     },
                 ),
                 "optimize_for_still": ("BOOLEAN", {
@@ -663,7 +675,7 @@ class H3ImageToImagePrepare:
                     list(FRAME_PRESETS.keys()),
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
-                        "tooltip": "5 frames is recommended for the best speed/quality balance. 20 frames gives H3 more temporal context and may improve quality, but is much slower. The node always returns frame 0 only.",
+                        "tooltip": "5 frames returns frame 0. With 20 frames, FL2VA keeps its first frames close to the source anchor, so the node returns the first stable edited still at frame 3. Only one image is emitted.",
                     },
                 ),
                 "source_fidelity": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05}),
@@ -726,7 +738,7 @@ class H3ReferenceEditPrepare:
                     list(FRAME_PRESETS.keys()),
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
-                        "tooltip": "5 frames is recommended for the best speed/quality balance. 20 frames gives H3 more temporal context and may improve quality, but is much slower. The node always returns frame 0 only.",
+                        "tooltip": "5 frames is recommended for the best speed/quality balance. 20 frames gives REF2VA more temporal context and is much slower. Reference Edit returns frame 0, which is already edited in both profiles.",
                     },
                 ),
                 "source_fidelity": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05}),
@@ -831,16 +843,22 @@ class H3ImageDecode:
 
         natural_frames = int(images.shape[0])
         requested_frames = max(1, int(samples.get("h3_requested_frames", natural_frames)))
-        decoded_frames = min(requested_frames, natural_frames)
-        if decoded_frames < natural_frames:
-            images = images[:decoded_frames].clone()
+        output_frame_index = max(0, int(samples.get("h3_output_frame_index", 0)))
+        output_frame_index = min(output_frame_index, natural_frames - 1)
+        available_frames = natural_frames - output_frame_index
+        decoded_frames = min(requested_frames, available_frames)
+        if output_frame_index > 0 or decoded_frames < natural_frames:
+            images = images[output_frame_index:output_frame_index + decoded_frames].clone()
 
-        if natural_frames < requested_frames:
-            info = f"Requested {requested_frames} frames but the VAE decoded only {natural_frames}."
-        elif natural_frames == requested_frames:
-            info = f"Decoded exactly {decoded_frames} frames."
+        if available_frames < requested_frames:
+            info = f"Requested {requested_frames} frames from index {output_frame_index}, but only {available_frames} were available."
+        elif output_frame_index == 0 and natural_frames == requested_frames:
+            info = f"Decoded exactly {decoded_frames} frames from index {output_frame_index}."
         else:
-            info = f"Decoded a {natural_frames}-frame partial packet and cropped it to exactly {decoded_frames}."
+            info = (
+                f"Decoded a {natural_frames}-frame packet and extracted {decoded_frames} frame(s) "
+                f"starting at index {output_frame_index}."
+            )
         return images, decoded_frames, info
 
 

@@ -26,8 +26,9 @@ FRAME PROFILES
 - maximum quality | 20 frames (slow): more temporal context, potentially higher
   quality, and a much longer generation time.
 
-Both profiles return frame 0 only. H3 processes the whole temporal packet jointly,
-so a 20-frame run cannot stop early while retaining the same frame-0 result.
+Both profiles return one image only. T2I, REF2VA, and five-frame I2I use frame 0.
+Twenty-frame FL2VA I2I uses frame 3 because frames 0-2 remain close to the source
+anchor. H3 processes the whole temporal packet jointly, so it cannot stop early.
 
 COMMON CONNECTIONS
 ==================
@@ -69,6 +70,8 @@ Connect LoadImage to:
 
 The source becomes a first-frame latent anchor. Source Fidelity changes the
 preservation language added to the prompt; it is not a denoise-strength control.
+With 20 frames, Exact Frame Decode automatically skips the source-like transition
+and returns decoded frame 3. The five-frame profile continues to return frame 0.
 Connect Image to Image.fitted_source to Single Image Output.source_image and use
 balanced_edit to rank both edit quality and source similarity.
 
