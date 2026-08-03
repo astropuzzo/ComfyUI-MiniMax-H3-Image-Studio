@@ -1,4 +1,12 @@
-# ComfyUI MiniMax H3 Image Studio v10
+# ComfyUI MiniMax H3 Image Studio v11
+
+> [!WARNING]
+> **Experimental, AI-coded project.** The entire extension and its documentation
+> were produced with AI-assisted coding, guided by repeated hands-on image tests.
+> The maintainer has no formal programming or model-engineering knowledge. Bugs,
+> incorrect assumptions, and hardware-specific behavior are possible. Code
+> review, corrections, suggestions, bug reports, and pull requests are very
+> welcome.
 
 Image-first ComfyUI nodes for using the open MiniMax H3 weights as a practical
 text-to-image, image-to-image, and reference-edit generator.
@@ -9,9 +17,8 @@ and the [Comfy-Org converted weights](https://huggingface.co/Comfy-Org/MiniMax-H
 
 The extension provides image-oriented conditioning, arbitrary frame counts,
 resolution controls up to 64 MP, official and manual sampling profiles,
-automatic still-frame scoring, reference editing, optional masked compositing,
-model downloads, and single-image output that does not pin the decoded frame
-packet in memory.
+automatic still-frame scoring, reference editing, and single-image output that
+does not pin the decoded frame packet in memory.
 
 ## Installation
 
@@ -21,8 +28,20 @@ git clone https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio.git
 ```
 
 Restart ComfyUI. No extra Python packages are required beyond the current
-ComfyUI installation. Models can be installed from the included downloader node
-or scripts described below.
+ComfyUI installation. Models are not included or downloaded automatically; see
+the [Models](#models) section.
+
+## Feedback and contributions
+
+Please use [GitHub Issues](https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/issues)
+for bugs and suggestions. Because the project is experimental and AI-coded,
+independent technical review is especially valuable. Pull requests are welcome.
+
+For a useful bug report, include the ComfyUI version, GPU/VRAM, system RAM,
+checkpoint filenames, workflow mode, resolution, frames, steps, sampler profile,
+workflow JSON, relevant console output, and a description of expected versus
+actual behavior. Images demonstrating artifacts are helpful when they can be
+shared safely.
 
 ## Important technical limit
 
@@ -34,8 +53,8 @@ the smallest temporal latent that covers the request, and Exact Frame Decode
 crops the small partial-packet surplus to the precise requested count.
 
 One-frame generation is available but remains experimental and can reproduce
-the soft, low-definition output seen in earlier tests. Five frames remains the
-recommended still preset because it is the first standard H3 packet.
+the soft, low-definition output seen in earlier tests. Five frames is the
+maximum-speed preset; 20 frames is the currently recommended T2I balance.
 
 ## Image nodes
 
@@ -51,9 +70,6 @@ recommended still preset because it is the first standard H3 packet.
   only the selected image. The selected frame owns independent storage, so the
   output cache does not retain the complete decoded packet; enable
   `emit_candidate_batch` only for debugging.
-- `MiniMax H3 • Masked Edit Composite` — composites a generated edit through a
-  mask after generation. H3 has no released mask-aware inpainting checkpoint.
-
 Advanced resolution, sampling, and the legacy combined prepare nodes remain
 available for experimentation.
 
@@ -179,9 +195,6 @@ commit/pagefile space.
 - The selected still and disabled debug output no longer retain the complete
   decoded packet. ComfyUI and PyTorch may still reserve reusable memory, and
   generating many high-resolution frames remains inherently expensive.
-- Reference Edit is reference-guided regeneration. No native mask-aware H3
-  inpainting checkpoint is currently available; Masked Edit Composite performs
-  the mask operation after generation.
 
 ## Example workflows
 
@@ -226,13 +239,6 @@ candidate range and emits one independent image. Keep `emit_candidate_batch`
 disabled for ordinary use so image-feed extensions and output caches receive
 only the selected still.
 
-### Masked edits
-
-For a localized edit, generate an I2I or Reference Edit result first, then send
-the original, generated image, and mask to Masked Edit Composite. Feather Pixels
-softens the boundary. This is post-generation compositing: the H3 denoising
-process itself does not see the mask.
-
 ## Graph
 
 1. Load the correct H3 diffusion model with `UNETLoader`.
@@ -250,8 +256,18 @@ API-format examples are in `examples/`.
 
 ## Models
 
-Use `MiniMax H3 • Select & Auto-Download Models`, or install the official
-Comfy-Org files manually:
+This extension intentionally does not contain a model downloader. Follow the
+[official ComfyUI MiniMax H3 guide](https://docs.comfy.org/tutorials/video/minimax/minimax-h3)
+and download the required files from
+[Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3).
+
+Place the selected files in the standard ComfyUI model folders:
+
+- diffusion checkpoints → `ComfyUI/models/diffusion_models/`
+- Qwen text encoder → `ComfyUI/models/text_encoders/`
+- video VAE → `ComfyUI/models/vae/`
+
+Recommended 24 GB VRAM filenames used by the included examples:
 
 - FL2VA: `minimax_h3_fl2va_pruned_int8_convrot.safetensors`
 - REF2VA: `minimax_h3_ref2va_pruned_int8_convrot.safetensors`
@@ -260,3 +276,10 @@ Comfy-Org files manually:
 
 The audio VAE is not used for image output. Restart ComfyUI after updating the
 extension so the new node schemas replace the cached definitions.
+
+## License
+
+Released under [The Unlicense](LICENSE): public-domain dedication with permission
+to copy, modify, publish, use, compile, sell, or distribute the project for any
+commercial or non-commercial purpose. The MiniMax models, ComfyUI, and other
+third-party components retain their own licenses and are not relicensed here.

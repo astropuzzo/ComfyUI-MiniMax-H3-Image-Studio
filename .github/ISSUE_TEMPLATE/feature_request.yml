@@ -1,0 +1,25 @@
+name: Suggestion or feature request
+description: Propose an improvement, correction, or tested workflow change
+title: "[Suggestion]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggestion
+      description: Describe the proposed improvement or correction.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Reason or test evidence
+      description: Explain the problem it solves and include comparative settings or results when available.
+    validations:
+      required: true
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Possible implementation
+      description: Optional technical notes, references, or links to a proposed pull request.

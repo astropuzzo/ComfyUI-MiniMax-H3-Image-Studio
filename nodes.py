@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Unlicense
 from __future__ import annotations
 
 import math
@@ -15,7 +15,6 @@ try:
     import comfy.nested_tensor
     import comfy.utils
     import node_helpers
-    import folder_paths
 except Exception as exc:  # pragma: no cover - only reached outside ComfyUI
     raise RuntimeError(
         "MiniMax H3 Image Studio must be installed inside ComfyUI/custom_nodes. "
@@ -530,7 +529,7 @@ class H3ImagePrepare:
                     "latent": ref_latent,
                 }]
             })
-            checkpoint_note = "Use a REF2VA checkpoint; this is reference-guided regeneration, not native masked inpainting."
+            checkpoint_note = "Use a REF2VA checkpoint; this is reference-guided regeneration."
 
         if natural_frames > 362:
             trained_note = "beyond the documented 124-362-frame training range"
@@ -986,56 +985,6 @@ class H3ImageFrameSelector:
         return selected, candidate_output, selected_index, selected_score, report
 
 
-class H3ImageMaskedComposite:
-    """Composite an H3 edit over the fitted source. This is post-compositing, not mask-aware H3 denoising."""
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "original": ("IMAGE",),
-                "edited": ("IMAGE",),
-                "mask": ("MASK",),
-                "feather_pixels": ("INT", {"default": 12, "min": 0, "max": 256, "step": 1}),
-                "invert_mask": ("BOOLEAN", {"default": False}),
-                "edited_fit": (["crop_center", "contain_pad", "stretch"], {"default": "stretch"}),
-            }
-        }
-
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("composited_image",)
-    FUNCTION = "composite"
-    CATEGORY = CATEGORY
-
-    def composite(
-        self,
-        original: torch.Tensor,
-        edited: torch.Tensor,
-        mask: torch.Tensor,
-        feather_pixels: int,
-        invert_mask: bool,
-        edited_fit: str,
-    ):
-        original = original[:1, ..., :3]
-        h, w = int(original.shape[1]), int(original.shape[2])
-        edited = _resize_image(edited[:1], w, h, edited_fit)
-
-        if mask.ndim == 2:
-            mask = mask.unsqueeze(0)
-        m = mask[:1].unsqueeze(1).to(device=edited.device, dtype=edited.dtype)
-        m = F.interpolate(m, size=(h, w), mode="bilinear", align_corners=False)
-        if invert_mask:
-            m = 1.0 - m
-        feather = int(feather_pixels)
-        if feather > 0:
-            kernel = feather * 2 + 1
-            m = F.avg_pool2d(m, kernel_size=kernel, stride=1, padding=feather)
-        m = m.clamp(0.0, 1.0).movedim(1, -1)
-        output = original.to(edited.device, edited.dtype) * (1.0 - m) + edited * m
-        return (output.clamp(0.0, 1.0),)
-
-
-
 class H3SamplingSettings:
     """Combined H3 sampler, scheduler and sigma-shift selector.
 
@@ -1184,137 +1133,7 @@ class H3ImageSamplingPreset:
         return shifted_model, sampler, sigmas, f"profile={sampling_profile}{manual_note} | {info}"
 
 
-class H3ModelDownloader:
-    """Download only the official Comfy-Org MiniMax H3 variants selected by the user."""
-
-    FL2VA_OPTIONS = {
-        "none": None,
-        "pruned INT8 ConvRot | recommended / smallest": "diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
-        "INT8 ConvRot | full": "diffusion_models/minimax_h3_fl2va_int8_convrot.safetensors",
-        "BF16 | maximum size": "diffusion_models/minimax_h3_fl2va_bf16.safetensors",
-    }
-    REF2VA_OPTIONS = {
-        "none": None,
-        "pruned INT8 ConvRot | recommended / smallest": "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
-        "INT8 ConvRot | full": "diffusion_models/minimax_h3_ref2va_int8_convrot.safetensors",
-        "BF16 | maximum size": "diffusion_models/minimax_h3_ref2va_bf16.safetensors",
-    }
-    TEXT_OPTIONS = {
-        "none": None,
-        "NVFP4 AWQ | recommended / smallest": "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
-        "INT8 ConvRot": "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
-        "BF16 | maximum size": "text_encoders/qwen3vl_32b_minimax_h3_bf16.safetensors",
-    }
-    VIDEO_VAE_PATH = "vae/minimax_h3_video_vae_fp16.safetensors"
-    AUDIO_VAE_PATH = "vae/minimax_h3_audio_vae_fp32.safetensors"
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "fl2va_model": (list(cls.FL2VA_OPTIONS.keys()), {"default": "pruned INT8 ConvRot | recommended / smallest"}),
-                "ref2va_model": (list(cls.REF2VA_OPTIONS.keys()), {"default": "none"}),
-                "text_encoder": (list(cls.TEXT_OPTIONS.keys()), {"default": "NVFP4 AWQ | recommended / smallest"}),
-                "video_vae": ("BOOLEAN", {"default": True}),
-                "audio_vae": ("BOOLEAN", {"default": False}),
-                "action": (["download missing", "check only", "force redownload"], {"default": "download missing"}),
-            }
-        }
-
-    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING", "STRING", "STRING")
-    RETURN_NAMES = (
-        "fl2va_filename",
-        "ref2va_filename",
-        "text_encoder_filename",
-        "video_vae_filename",
-        "audio_vae_filename",
-        "status",
-    )
-    FUNCTION = "download_selected"
-    CATEGORY = CATEGORY
-    OUTPUT_NODE = True
-
-    @classmethod
-    def IS_CHANGED(cls, **kwargs):
-        return float("nan")
-
-    @staticmethod
-    def _folder_for_remote(remote_path: str) -> str:
-        return remote_path.split("/", 1)[0]
-
-    @staticmethod
-    def _destination(remote_path: str) -> "Path":
-        from pathlib import Path
-
-        folder_key = H3ModelDownloader._folder_for_remote(remote_path)
-        configured = folder_paths.get_folder_paths(folder_key)
-        if not configured:
-            raise RuntimeError(f"ComfyUI has no configured model path for {folder_key}")
-        destination = Path(configured[0]) / Path(remote_path).name
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        return destination
-
-    def download_selected(
-        self,
-        fl2va_model: str,
-        ref2va_model: str,
-        text_encoder: str,
-        video_vae: bool,
-        audio_vae: bool,
-        action: str,
-    ):
-        from pathlib import Path
-        from .scripts.download_models import BASE, download_stream
-
-        selected = [
-            self.FL2VA_OPTIONS[fl2va_model],
-            self.REF2VA_OPTIONS[ref2va_model],
-            self.TEXT_OPTIONS[text_encoder],
-            self.VIDEO_VAE_PATH if video_vae else None,
-            self.AUDIO_VAE_PATH if audio_vae else None,
-        ]
-        selected = [item for item in selected if item]
-        if not selected:
-            raise ValueError("No MiniMax H3 model file selected")
-
-        lines = []
-        force = action == "force redownload"
-        for remote_path in selected:
-            destination = self._destination(remote_path)
-            if destination.exists() and not force:
-                lines.append(f"EXISTS: {destination}")
-                continue
-            if action == "check only":
-                lines.append(f"MISSING: {destination}")
-                continue
-            lines.append(f"DOWNLOADING: {destination.name}")
-            download_stream(f"{BASE}/{remote_path}?download=true", destination)
-            lines.append(f"DONE: {destination}")
-
-        # Touch ComfyUI's model lists after downloads. Existing loader widgets may still
-        # need a browser refresh, but new loader nodes will see the files immediately.
-        for key in ("diffusion_models", "text_encoders", "vae"):
-            try:
-                folder_paths.get_filename_list(key)
-            except Exception:
-                pass
-
-        def filename(value):
-            return "none" if value is None else Path(value).name
-
-        report = "\n".join(lines)
-        return (
-            filename(self.FL2VA_OPTIONS[fl2va_model]),
-            filename(self.REF2VA_OPTIONS[ref2va_model]),
-            filename(self.TEXT_OPTIONS[text_encoder]),
-            Path(self.VIDEO_VAE_PATH).name if video_vae else "none",
-            Path(self.AUDIO_VAE_PATH).name if audio_vae else "none",
-            report,
-        )
-
-
 NODE_CLASS_MAPPINGS = {
-    "H3ModelDownloader": H3ModelDownloader,
     "H3ImageSamplingPreset": H3ImageSamplingPreset,
     "H3SamplingSettings": H3SamplingSettings,
     "H3ImageResolutionPreset": H3ImageResolutionPreset,
@@ -1325,11 +1144,9 @@ NODE_CLASS_MAPPINGS = {
     "H3ImagePrepare": H3ImagePrepare,
     "H3ImageDecode": H3ImageDecode,
     "H3ImageFrameSelector": H3ImageFrameSelector,
-    "H3ImageMaskedComposite": H3ImageMaskedComposite,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "H3ModelDownloader": "MiniMax H3 • Select & Auto-Download Models",
     "H3ImageSamplingPreset": "MiniMax H3 Image • Sampling Preset",
     "H3SamplingSettings": "MiniMax H3 Image • Advanced Sampling",
     "H3ImageResolutionPreset": "MiniMax H3 Image • Resolution Preset",
@@ -1340,5 +1157,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "H3ImagePrepare": "MiniMax H3 Image • Legacy Combined Prepare",
     "H3ImageDecode": "MiniMax H3 Image • Exact Frame Decode",
     "H3ImageFrameSelector": "MiniMax H3 Image • Single Image Output",
-    "H3ImageMaskedComposite": "MiniMax H3 • Masked Edit Composite",
 }

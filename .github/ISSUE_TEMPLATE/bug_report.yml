@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible problem with MiniMax H3 Image Studio
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is an experimental, AI-coded project. Detailed reports and technical corrections are welcome. Do not post private prompts, images, tokens, or personal information.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, ComfyUI, Python, PyTorch, GPU, VRAM, and system RAM.
+      placeholder: Windows 11; ComfyUI ...; RTX ...; VRAM ...; RAM ...
+    validations:
+      required: true
+  - type: textarea
+    id: models
+    attributes:
+      label: Model files
+      description: Exact diffusion model, text encoder, and VAE filenames.
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Workflow settings
+      description: T2I/I2I/Reference Edit, seed, resolution, frames, steps, sampling profile, and selector strategy.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps and workflow
+      description: Explain the steps and attach a minimal workflow JSON if possible.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output
+      description: Paste the relevant error or log excerpt.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I restarted ComfyUI and reproduced this on the latest main branch.
+          required: true
+        - label: I removed private or sensitive information from this report.
+          required: true

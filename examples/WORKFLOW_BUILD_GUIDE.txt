@@ -1,5 +1,9 @@
-MINIMAX H3 IMAGE WORKFLOW V10
+MINIMAX H3 IMAGE WORKFLOW V11
 =============================
+
+This is an experimental, entirely AI-coded project. Review and test every
+workflow on your own setup. Bug reports, corrections, and pull requests are
+welcome on GitHub.
 
 MODEL FAMILY
 ============
@@ -92,10 +96,3 @@ RESOLUTION
 High resolution sharply increases VRAM, RAM, decode time, and pagefile pressure.
 It often adds canvas pixels without proportional learned detail. Enable
 limit_to_native_area for the conservative approximately 1 MP cap.
-
-MASKED EDIT LIMIT
-=================
-
-The released H3 checkpoints do not accept an inpainting mask. Generate an I2I or
-Reference Edit result, then blend it with MiniMax H3 - Masked Edit Composite.
-The mask is post-compositing and is not visible to the diffusion model.
