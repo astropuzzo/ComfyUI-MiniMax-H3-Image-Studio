@@ -1,4 +1,4 @@
-# ComfyUI MiniMax H3 Image Studio v11
+# ComfyUI MiniMax H3 Image Studio v12
 
 > [!WARNING]
 > **Experimental, AI-coded project.** The entire extension and its documentation
@@ -177,6 +177,52 @@ The recommendations above were obtained on:
 Generation time and memory use will differ on other systems. High-resolution
 multi-frame decode can use tens of gigabytes of combined VRAM, RAM, and Windows
 commit/pagefile space.
+
+## Measured local performance
+
+These are end-to-end wall-clock times reported by ComfyUI as `Prompt executed
+in`, not estimates. They include conditioning, sampling, VAE decode, still
+selection, and saving. The median is more representative than a single run
+because model/cache state, source image, aspect ratio, and accumulated memory
+pressure can change the result.
+
+The measurements were made before the final preset label changed from 22 to 20
+requested frames. This does not invalidate the comparison: a 20-frame request
+uses the same minimum natural 22-frame H3/VAE packet and crops it to exactly 20
+after decoding, so its main compute cost is effectively the same. The table
+therefore shows the current requested count and the natural packet in
+parentheses.
+
+### Text to Image — FL2VA, 1664 x 2496 (3.96 MP)
+
+| Current setting | Natural frames | Runs | Median | Observed range |
+|---|---:|---:|---:|---:|
+| 5 frames / 12 steps — maximum speed | 5 | 6 | 36.2 s | 28.2–43.7 s |
+| 20 frames / 12 steps — recommended | 22 | 7 | 90.0 s | 83.9–133.1 s |
+| 20 frames / 20 steps — maximum observed quality | 22 | 11 | 141.4 s | 136.1–164.0 s |
+
+Two additional manual T2I checks at the same resolution took 41.8 seconds for
+5 frames / 20 steps and 79.4 seconds for 10 requested frames / 20 steps. Each
+was a single run, so treat those values as indicative only.
+
+### Image-to-Image edit — FL2VA
+
+| Resolution | Current setting | Natural frames | Runs | Median | Observed range |
+|---|---|---:|---:|---:|---:|
+| about 2.0 MP | 20 frames / 12 steps | 22 | 16 | 54.0 s | 32.2–93.1 s |
+| 1.99 MP | 20 frames / 20 steps | 22 | 1 | 104.0 s | single run |
+| 3.01 MP | 20 frames / 12 steps | 22 | 1 | 87.6 s | single run |
+| 4.01 MP | 20 frames / 12 steps | 22 | 1 | 120.9 s | single run |
+
+The broad 2 MP range combines different portrait aspect ratios, source images,
+edit instructions, and cache/memory states. For a cleaner repeated comparison,
+the two latest 1184 x 1760 tests with the same 20-frame / 12-step setup took
+59.05 and 61.79 seconds, averaging 60.42 seconds.
+
+These edit timings cover the FL2VA Image-to-Image workflow. REF2VA Reference
+Edit was tested and works, but its matching timestamped console log was no
+longer retained when this benchmark table was assembled, so no speculative
+REF2VA speed figure is published here.
 
 ## Known limitations
 
