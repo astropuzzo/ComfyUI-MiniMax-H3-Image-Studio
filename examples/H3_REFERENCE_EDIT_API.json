@@ -59,8 +59,7 @@
         "4",
         1
       ],
-      "quality_profile": "recommended | 20 frames",
-      "output_mode": "first frame | fast 5-frame packet",
+      "quality_profile": "recommended | 5 frames",
       "source_fidelity": 0.75,
       "source_fit": "crop_center",
       "reference_detail": "match_generation_area",
@@ -93,7 +92,7 @@
         "1",
         0
       ],
-      "sampling_profile": "reference detail | beta, 20 steps"
+      "sampling_profile": "quality | 20 steps"
     }
   },
   "10": {

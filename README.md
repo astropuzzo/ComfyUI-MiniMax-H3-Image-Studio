@@ -47,15 +47,14 @@ shared safely.
 
 H3-Base is a video/audio model, not a natively trained one-frame diffusion
 checkpoint. Its temporal VAE naturally maps latent tokens to pixel-frame spans
-of `1,4,4,4,4` in a repeating pattern; the standard complete packets therefore
-land on `17k+5`. Manual mode may now request any count from 1 to 4096. It uses
-the smallest temporal latent that covers the request, and Exact Frame Decode
-crops the small partial-packet surplus to the precise requested count.
+of `1,4,4,4,4` in a repeating pattern. A requested 20-frame context therefore
+uses the smallest covering packet, which naturally contains 22 decoded frames.
 
 Direct one-token generation remains experimental and can reproduce the soft,
 low-definition output seen in earlier tests. Controlled 5-versus-20-frame tests
-instead found frame 0 to be the useful still consistently. The new default
-therefore samples H3's minimum stable five-frame packet and emits only frame 0.
+instead found frame 0 to be the useful still consistently. Every workflow now
+returns only frame 0; the selected 5- or 20-frame packet exists solely to provide
+the video model with temporal context during sampling.
 
 ## Image nodes
 
@@ -64,76 +63,41 @@ therefore samples H3's minimum stable five-frame packet and emits only frame 0.
 - `MiniMax H3 Image • Reference Edit` — use the separate **REF2VA** model, with
   up to nine ordered reference images.
 - `MiniMax H3 Image • Resolution Preset` — safe H3-native aspect/size selection.
-- `MiniMax H3 Image • Sampling Preset` — official baseline or a reference preset.
-- `MiniMax H3 Image • Exact Frame Decode` — replaces core `VAEDecode` and crops
-  partial temporal packets to the exact manual frame count.
-- `MiniMax H3 Image • Single Image Output` — selects a sharp, stable still. Its
-  candidate batch is suppressed by default so image-feed extensions receive
-  only the selected image. The selected frame owns independent storage, so the
-  output cache does not retain the complete decoded packet; enable
-  `emit_candidate_batch` only for debugging.
-Advanced resolution, sampling, and the legacy combined prepare nodes remain
-available for experimentation.
+- `MiniMax H3 Image • Sampling Preset` — 20-step quality or 12-step speed.
+- `MiniMax H3 Image • Exact Frame Decode` — decodes the temporal packet and keeps
+  frame 0 for image output.
+- `MiniMax H3 Image • Single Image Output` — receives only that still in the
+  standard workflows, preventing image-feed extensions from showing every frame.
+Advanced resolution, sampling, and combined prepare nodes remain available for
+experimentation.
 
-## Output modes
+## Frames
 
-All three image workflows expose the same output mode:
+All three image workflows expose only two useful choices:
 
-- `first frame | fast 5-frame packet` is the new default. It samples the minimum
-  stable five-frame H3 packet, then Exact Frame Decode keeps frame 0 only. The
-  selected quality profile and manual frame count are ignored in this mode.
-- `legacy | use quality profile` preserves the complete pre-patch behavior. It
-  samples the chosen frame profile, decodes all requested frames, and passes
-  them to Single Image Output for automatic or manual selection.
+- `recommended | 5 frames` — best observed speed/quality balance and the default.
+- `maximum quality | 20 frames (slow)` — gives H3 more temporal context and may
+  improve frame 0, but is much slower, especially at high resolution.
 
-Newly created nodes default to First Frame. Backend/API calls that omit the new
-`output_mode` field fall back to Legacy for compatibility. When reopening an old
-UI workflow, verify the new control explicitly: ComfyUI may insert the new First
-Frame default while updating the node's saved widgets.
+H3 denoises the complete temporal packet jointly, not frame by frame. A 20-frame
+run cannot stop early after frame 0 while preserving the same result. The plugin
+must compute the selected packet, then Exact Frame Decode discards everything
+except frame 0.
 
-This is not a literal early exit from a 20-frame generation. H3 denoises every
-temporal token simultaneously at every sampling step, and its transformer uses
-joint temporal attention. The first frame of a 20-frame run is therefore not
-finished before the other frames. Computing that exact frame requires computing
-the complete packet. The fast mode obtains the real speed and memory saving by
-using the proven five-frame minimum instead of pretending that a 20-frame run
-can be interrupted sequentially.
-
-## Legacy quality profiles
-
-These controls are active only when output mode is `legacy`:
-
-| Profile | Frames | Use |
-|---|---:|---|
-| maximum speed | 5 | Fastest result; greater risk of banding, grid artifacts, or a weak frame |
-| recommended | 20 | Previous T2I balance; Legacy default |
-| image balanced | 56 | Slower experiment with more temporal drift risk |
-| video-trained | 124 | Inside the trained duration; very slow for one still |
-| video-trained+ | 192 | Longer video-range experiment |
-| manual frames | 1–4096 | Exact requested output count; partial packet cropped after decode |
-
-### Tested T2I combinations
+### Recommended combinations
 
 These settings produced the most useful trade-offs during repeated local tests:
 
 | Goal | Frames | Steps | Result |
 |---|---:|---:|---|
-| Maximum speed | 5 | 12 | Fastest, but banding and other temporal/VAE artifacts are more likely |
-| Recommended speed | 20 | 12 | Recommended balance of time, stability, and candidate quality |
-| Maximum quality | 20 | 20 | Best observed quality; slower than the recommended-speed setup |
+| Recommended speed/quality | 5 | 20 | Default frame profile with maximum-quality sampling |
+| Faster generation | 5 | 12 | Lower wait time with a possible quality reduction |
+| Maximum quality | 20 | 20 | More temporal context; much slower |
 
-Increasing frames beyond 20 or steps beyond 20 did not consistently improve a
-single still enough to justify the additional time and memory in these tests.
-The result remains model- and prompt-dependent; no profile can remove H3's
-underlying softness, blockiness, banding, or grid artifacts in every image.
-
-Choose Legacy output mode, then `manual frames | exact value below`, to use the
-adjacent `manual_frames` control. Every integer from 1 to 4096 is accepted
-without alignment. Some
-requests need a slightly longer natural VAE packet—for example 6 uses 9→6 and
-10 uses 13→10—but the minimum covering latent is used, not the next `17k+5`
-packet. Counts above 362 are outside the documented training range and can be
-extremely expensive.
+Frames above 20 and steps above 20 did not improve a still consistently enough
+to justify their cost, so they were removed from the simple presets. Results
+remain model- and prompt-dependent; softness, blockiness, banding, and grid
+artifacts can still occur.
 
 ## Resolution
 
@@ -159,14 +123,9 @@ The maximum-quality baseline uses:
 - video/audio sigma shifts: `12 / 3`
 - CFG: none (`BasicGuider`; H3 checkpoints are CFG-distilled)
 
-This is the official ComfyUI-style baseline and is the default sampling preset.
-For the recommended faster T2I setup, select `fast preview | 12 steps` together
-with the default First Frame output mode. Select Legacy only when reproducing or
-comparing the former multi-frame selection workflow.
-For REF2VA-heavy edits, the `reference detail` preset uses
-`res_multistep + beta + 20`, following ComfyUI's reference-workflow guidance.
-Choose `manual steps | official sampler` to activate `manual_steps`; this keeps
-the official `res_multistep + simple` path and changes only the number of steps.
+This is the default `quality | 20 steps` preset. Choose `speed | 12 steps` for a
+faster result. These are the only simple presets for T2I, I2I, and Reference
+Edit; both use the official `res_multistep + simple` path.
 For fully manual sampler, scheduler, shifts, denoise, and steps, use the advanced
 `MiniMax H3 Sampling Settings` node.
 
@@ -191,8 +150,8 @@ intended as the final still.
 
 ## Test setup
 
-The measurements below were obtained before First Frame became the default and
-therefore describe Legacy multi-frame mode unless stated otherwise. Test setup:
+The measurements below include the complete temporal-packet cost even though the
+current workflows save only frame 0. Test setup:
 
 - Windows 11 Pro with Stability Matrix
 - Intel Core i9-13900KF
@@ -249,8 +208,8 @@ from 5 to 20 requested frames raised the measured time from 84 seconds to about
 
 | Current setting | Natural frames | Runs | Median | Observed range |
 |---|---:|---:|---:|---:|
-| 5 frames / 12 steps — maximum speed | 5 | 6 | 36.2 s | 28.2–43.7 s |
-| 20 frames / 12 steps — recommended | 22 | 7 | 90.0 s | 83.9–133.1 s |
+| 5 frames / 12 steps — speed | 5 | 6 | 36.2 s | 28.2–43.7 s |
+| 20 frames / 12 steps — slow comparison | 22 | 7 | 90.0 s | 83.9–133.1 s |
 | 20 frames / 20 steps — maximum observed quality | 22 | 11 | 141.4 s | 136.1–164.0 s |
 
 Two additional manual T2I checks at the same resolution took 41.8 seconds for
@@ -297,9 +256,8 @@ REF2VA speed figure is published here.
 
 - H3 is fundamentally a video/audio model. This project adapts it for stills;
   it does not turn the checkpoint into a native image diffusion model.
-- First Frame mode still computes a five-frame temporal packet because H3 does
-  not generate frames sequentially. It cannot reproduce the exact first frame
-  of a 20-frame packet without paying the cost of that complete packet.
+- The selected 5- or 20-frame temporal packet is fully computed because H3 does
+  not generate frames sequentially. Only frame 0 is retained afterward.
 - Direct one-token generation often has lower definition and stronger artifacts
   than the five-frame fast path and is not used by the new default.
 - Direct 2–8 MP generation increases canvas size and memory far more reliably
@@ -307,9 +265,6 @@ REF2VA speed figure is published here.
   not reproduced here.
 - Softness, blockiness, color banding, and grid-like artifacts can remain even
   when sampling succeeds.
-- Arbitrary frame counts use the minimum temporal latent that covers the
-  request, then crop with Exact Frame Decode. The core ComfyUI `VAEDecode` does
-  not perform this final exact-count crop.
 - The selected still and disabled debug output no longer retain the complete
   decoded packet. ComfyUI and PyTorch may still reserve reusable memory, and
   generating many high-resolution frames remains inherently expensive.
@@ -326,19 +281,16 @@ different names.
 Uses the FL2VA checkpoint without a source image. Resolution Preset creates the
 canvas, Text to Image builds the H3 audio/video latent and still-oriented text
 conditioning, and SamplerCustomAdvanced performs sampling with BasicGuider. The
-published example uses First Frame output mode with the 12-step fast-preview
-sampling profile. It internally samples five frames and saves frame 0. Switch to
-Legacy to reproduce the former 20-frame candidate-selection workflow.
+published example uses the recommended five-frame profile with `speed | 12
+steps`. It computes the stable temporal packet and saves frame 0 only.
 
 ### Image to Image — `H3_I2I_API.json`
 
 Uses FL2VA with the loaded picture encoded as the first-frame anchor. Source
 Fidelity controls how strongly the prompt wrapper asks H3 to preserve identity,
 pose, perspective, composition, and geometry; it is not a diffusion denoise
-slider. The fitted source is also passed to Single Image Output so
-`balanced_edit` can combine visual similarity with sharpness and temporal
-stability in Legacy mode. In First Frame mode it receives one image and returns
-frame 0 unchanged.
+slider. Exact Frame Decode keeps frame 0, and Single Image Output receives that
+single independent image.
 
 ### Image Edit examples
 
@@ -384,18 +336,16 @@ as `<Picture 1>`, `<Picture 2>`, and so on. For example: “keep the person and
 composition from `<Picture 1>`, but use the jacket from `<Picture 2>` and the
 lighting style from `<Picture 3>`.” The bundled API workflow demonstrates two
 Load Image nodes. Existing one-reference workflows remain valid without changes.
-The example uses the `reference detail | beta, 20 steps` sampling profile and
-First Frame output mode. Increase Source Fidelity for stricter identity and
-composition preservation; reduce it when the requested change is being resisted.
+The example uses the recommended five-frame profile with `quality | 20 steps`.
+Increase Source Fidelity for stricter identity and composition preservation;
+reduce it when the requested change is being resisted.
 
 ### Exact decode and final selection
 
 All three examples send the sampled latent to Exact Frame Decode, not core
-`VAEDecode`. In First Frame mode it decodes the minimum five-frame packet and
-immediately crops the output to frame 0. In Legacy it preserves arbitrary manual
-frame counts and crops partial H3 packets precisely. Single Image Output receives
-one image in First Frame mode or scores the decoded candidate range in Legacy.
-Keep `emit_candidate_batch` disabled for ordinary use.
+`VAEDecode`. It decodes the selected temporal packet and immediately keeps frame
+0. Single Image Output therefore receives one image. Keep
+`emit_candidate_batch` disabled for ordinary use.
 
 ## Graph
 

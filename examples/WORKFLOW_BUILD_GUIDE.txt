@@ -1,4 +1,4 @@
-MINIMAX H3 IMAGE WORKFLOW V11
+MINIMAX H3 IMAGE WORKFLOW V12
 =============================
 
 This is an experimental, entirely AI-coded project. Review and test every
@@ -19,27 +19,15 @@ All workflows use:
 - MiniMax H3 Image - Exact Frame Decode
 - MiniMax H3 Image - Single Image Output
 
-OUTPUT MODES
-============
+FRAME PROFILES
+==============
 
-Use first frame | fast 5-frame packet for normal still-image output. H3 samples
-its minimum stable five-frame temporal packet, Exact Frame Decode keeps frame 0,
-and Single Image Output receives only that image. The quality_profile control is
-ignored in this mode.
+- recommended | 5 frames: best speed/quality balance and the default.
+- maximum quality | 20 frames (slow): more temporal context, potentially higher
+  quality, and a much longer generation time.
 
-Use legacy | use quality profile to reproduce the pre-patch workflow. Legacy
-samples the selected quality_profile or manual frame count, decodes every
-requested frame, and lets Single Image Output rank them.
-
-Backend/API workflows that omit output_mode fall back to Legacy. Newly created
-nodes default to First Frame. When reopening an old UI workflow, check the new
-control explicitly because ComfyUI may insert its new default into saved widgets.
-
-H3 does not generate temporal frames sequentially: every diffusion step attends
-to the complete latent packet. A 20-frame run therefore cannot stop after frame
-0 while retaining the exact first-frame result of that 20-frame run. The fast
-mode removes the unnecessary 20-frame packet and uses the proven five-frame
-minimum instead.
+Both profiles return frame 0 only. H3 processes the whole temporal packet jointly,
+so a 20-frame run cannot stop early while retaining the same frame-0 result.
 
 COMMON CONNECTIONS
 ==================
@@ -63,14 +51,10 @@ TEXT TO IMAGE
 Use MiniMax H3 Image - Text to Image with FL2VA.
 Connect Resolution Preset width/height to the image node.
 
-Recommended new still setup:
-- First-frame output mode, fast preview / 12 steps
-  Samples five internal frames and saves frame 0 only.
-
-Legacy comparison profiles:
-- 5 frames, fast preview / 12 steps
-- 20 frames, fast preview / 12 steps
-- 20 frames, official quality / 20 steps
+Recommended setup:
+- 5 frames + quality / 20 steps for the standard quality preset.
+- 5 frames + speed / 12 steps for faster generation.
+- 20 frames + quality / 20 steps for maximum quality when time is secondary.
 
 Use stable_quality or best_quality in Single Image Output. Keep
 emit_candidate_batch disabled unless inspecting candidate frames.
@@ -93,22 +77,12 @@ REFERENCE EDIT
 
 Use MiniMax H3 Image - Reference Edit with REF2VA.
 Connect LoadImage to Resolution Preset and Reference Edit as above.
-Use reference detail / beta / 20 steps as the starting sampling profile.
+Use quality / 20 steps as the starting sampling profile.
 
 Reference Edit regenerates from visual reference features rather than using the
 source as an exact first-frame anchor. It is useful for semantic changes such as
 clothing, material, style, or environment. Increase Source Fidelity when identity
 or composition drifts; reduce it when H3 refuses the requested change.
-
-EXACT MANUAL FRAMES
-===================
-
-First select legacy | use quality profile. Then select manual frames / exact
-value below and enter any integer from 1 to 4096.
-The node creates the smallest temporal latent covering that request. H3's VAE
-may naturally decode a few extra frames for a partial packet; Exact Frame Decode
-crops them to the precise requested count. Do not replace it with core VAEDecode
-when exact arbitrary frame counts matter.
 
 RESOLUTION
 ==========
