@@ -1,4 +1,4 @@
-# ComfyUI MiniMax H3 Image Studio v12
+# ComfyUI MiniMax H3 Image Studio v13
 
 > [!WARNING]
 > **Experimental, AI-coded project.** The entire extension and its documentation
@@ -193,7 +193,29 @@ after decoding, so its main compute cost is effectively the same. The table
 therefore shows the current requested count and the natural packet in
 parentheses.
 
-### Text to Image — FL2VA, 1664 x 2496 (3.96 MP)
+### Text to Image — FL2VA
+
+#### Resolution and frame sweep — 20 steps
+
+This earlier controlled sweep is the missing 1 / 2 / 4 / 8 MP comparison. The
+2, 4, and 8 MP pairs used the same prompt and seed; the 0.99 MP results are
+representative runs from the same test session.
+
+| Resolution | Canvas | Requested frames | Natural frames | Runs | Median/time | Observed range |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0.99 MP | 832 x 1248 | 20 | 22 | 2 | 28.7 s | 24.2–33.2 s |
+| 1.99 MP | 1184 x 1760 | 5 | 5 | 1 | 27.8 s | single run |
+| 1.99 MP | 1184 x 1760 | 20 | 22 | 1 | 50.1 s | single run |
+| 3.96 MP | 1664 x 2496 | 5 | 5 | 1 | 38.9 s | single run |
+| 3.96 MP | 1664 x 2496 | 20 | 22 | 1 | 138.6 s | single run |
+| 8.02 MP | 2368 x 3552 | 5 | 5 | 1 | 84.0 s | single run |
+| 8.02 MP | 2368 x 3552 | 20 | 22 | 1 | 401.8 s | single run |
+
+The 8 MP result demonstrates the cost ceiling especially clearly: increasing
+from 5 to 20 requested frames raised the measured time from 84 seconds to about
+6 minutes 42 seconds without a proportional fidelity improvement.
+
+#### Profile comparison — 1664 x 2496 (3.96 MP)
 
 | Current setting | Natural frames | Runs | Median | Observed range |
 |---|---:|---:|---:|---:|
@@ -207,6 +229,8 @@ was a single run, so treat those values as indicative only.
 
 ### Image-to-Image edit — FL2VA
 
+#### Recommended-speed edit tests — 12 steps
+
 | Resolution | Current setting | Natural frames | Runs | Median | Observed range |
 |---|---|---:|---:|---:|---:|
 | about 2.0 MP | 20 frames / 12 steps | 22 | 16 | 54.0 s | 32.2–93.1 s |
@@ -218,6 +242,21 @@ The broad 2 MP range combines different portrait aspect ratios, source images,
 edit instructions, and cache/memory states. For a cleaner repeated comparison,
 the two latest 1184 x 1760 tests with the same 20-frame / 12-step setup took
 59.05 and 61.79 seconds, averaging 60.42 seconds.
+
+#### Earlier 20-step edit sweep
+
+These additional results include the missing native-resolution tests. The
+`reference detail` rows use the beta scheduler while remaining FL2VA
+Image-to-Image runs; they are not REF2VA Reference Edit.
+
+| Resolution | Current setting | Natural frames | Sampling profile | Runs | Median/time | Observed range |
+|---:|---|---:|---|---:|---:|---:|
+| 0.99 MP | 5 frames / 20 steps | 5 | reference detail / beta | 3 | 30.1 s | 21.8–31.9 s |
+| 0.99 MP | 20 frames / 20 steps | 22 | reference detail / beta | 3 | 32.3 s | 32.2–42.8 s |
+| 0.99 MP | 5 frames / 20 steps | 5 | official quality / simple | 1 | 25.4 s | single run |
+| 1.99 MP | 5 frames / 20 steps | 5 | official quality / simple | 1 | 43.7 s | single run |
+| 1.99 MP | 20 frames / 20 steps | 22 | reference detail / beta | 2 | 80.7 s | 75.2–86.2 s |
+| 3.96 MP | 5 frames / 20 steps | 5 | official quality / simple | 1 | 75.1 s | single run |
 
 These edit timings cover the FL2VA Image-to-Image workflow. REF2VA Reference
 Edit was tested and works, but its matching timestamped console log was no
@@ -266,6 +305,34 @@ pose, perspective, composition, and geometry; it is not a diffusion denoise
 slider. The fitted source is also passed to Single Image Output so
 `balanced_edit` can combine visual similarity with sharpness and temporal
 stability when selecting the final still.
+
+### Image Edit examples
+
+These are real FL2VA Image-to-Image results produced with the custom nodes. The
+examples show that broad semantic replacement can work while much of the source
+composition, camera position, and subject placement remains recognizable.
+
+#### Environment replacement
+
+Prompt: `Replace the moss and trees with ashes and burning lava flowing everywhere.`
+
+| Before | After |
+|---|---|
+| <img src="assets/image-edit-examples/robot-moss-before.png" alt="Moss-covered robot before the edit"> | <img src="assets/image-edit-examples/robot-lava-after.png" alt="Burning robot surrounded by ashes and lava after the edit"> |
+
+Settings: 1472 x 2144, 3.01 MP, 20 requested / 22 natural frames, 12 steps,
+87.57 seconds.
+
+#### Subject replacement
+
+Prompt: `Replace the woman with a clown.`
+
+| Before | After |
+|---|---|
+| <img src="assets/image-edit-examples/woman-car-before.png" alt="Woman standing in front of a car before the edit"> | <img src="assets/image-edit-examples/clown-car-after.png" alt="Clown standing in front of the same car after the edit"> |
+
+Settings: 1184 x 1760, 1.99 MP, 20 requested / 22 natural frames, 12 steps,
+58.41 seconds. The source was resized from its original 1664 x 2496 canvas.
 
 ### Reference Edit — `H3_REFERENCE_EDIT_API.json`
 
