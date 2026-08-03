@@ -53,8 +53,8 @@ uses the smallest covering packet, which naturally contains 22 decoded frames.
 Direct one-token generation remains experimental and can reproduce the soft,
 low-definition output seen in earlier tests. Controlled tests found frame 0 to
 be the useful still for T2I, REF2VA, and five-frame FL2VA edits. In 20-frame
-FL2VA I2I, however, frames 0–2 remain close to the source anchor and the edit
-stabilizes at frame 3. The plugin therefore extracts one mode-aware still.
+FL2VA I2I, however, the number of source-like transition frames varies by edit.
+The decoder therefore finds the first stable changed frame automatically.
 
 ## Image nodes
 
@@ -82,7 +82,7 @@ All three image workflows expose only two useful choices:
 H3 denoises the complete temporal packet jointly, not frame by frame. A 20-frame
 run cannot stop early after one image while preserving the same result. The
 plugin must compute the selected packet, then Exact Frame Decode keeps frame 0
-for T2I/REF2VA and frame 3 for 20-frame FL2VA I2I.
+for T2I/REF2VA and dynamically finds the first mature edit for 20-frame FL2VA I2I.
 
 ### Recommended combinations
 
@@ -291,7 +291,8 @@ Fidelity controls how strongly the prompt wrapper asks H3 to preserve identity,
 pose, perspective, composition, and geometry; it is not a diffusion denoise
 slider. Exact Frame Decode keeps frame 0, and Single Image Output receives that
 single independent image in the five-frame profile. For 20-frame FL2VA I2I it
-automatically keeps frame 3, after the source-anchor transition.
+compares the decoded frames with frame 0 and keeps the earliest frame where the
+edit has reached a stable change plateau.
 
 ### Image Edit examples
 
