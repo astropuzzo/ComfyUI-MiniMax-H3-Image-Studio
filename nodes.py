@@ -222,6 +222,7 @@ def _empty_h3_av_latent(
     return {
         "samples": nested,
         "h3_requested_frames": requested_frames,
+        "h3_context_frames": internal_frames,
         "h3_natural_frames": natural_frames,
         "h3_output_frame_index": max(0, int(output_frame_index)),
         "h3_output_strategy": str(output_strategy),
@@ -486,7 +487,11 @@ class H3ImagePrepare:
                     list(FRAME_PRESETS.keys()),
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
-                        "tooltip": "H3 is a video model, so still quality depends on temporal context. 5 frames is the recommended speed/quality balance; 20 frames is much slower and may improve maximum quality. One mode-aware still is returned.",
+                        "tooltip": (
+                            "H3 is a video model, so still quality depends on temporal context. The complete 5- or "
+                            "20-frame profile is decoded for the Single Image Output node. That node normally returns "
+                            "one selected still, or the full batch when emit_candidate_batch is enabled."
+                        ),
                     },
                 ),
                 "optimize_prompt": ("BOOLEAN", {"default": True}),
@@ -538,11 +543,16 @@ class H3ImagePrepare:
         width = _round_to_multiple(width, CANVAS_MULTIPLE)
         height = _round_to_multiple(height, CANVAS_MULTIPLE)
         internal_frames = _resolve_frame_count(frame_preset)
-        output_frames = 1
-        # FL2VA frame 0 is conditioned by the exact source anchor. The number of
-        # source-like transition frames varies by edit: retained-frame tests
-        # observed both frame 1 and frame 3 as the first completed result. For
-        # 20-frame I2I, detect the earliest stable change after VAE decode.
+
+        # The previous implementation requested only one decoded frame. That made
+        # emit_candidate_batch impossible: the selector received a one-image batch
+        # after Exact Frame Decode had already discarded every other generated frame.
+        # Decode the complete selected temporal profile and let the downstream
+        # selector decide whether to emit one still or the complete batch.
+        output_frames = internal_frames
+
+        # Keep the preferred-frame metadata for diagnostics. Exact Frame Decode no
+        # longer destroys the surrounding frames; it reports the preferred index.
         dynamic_edit_selection = mode == "image_to_image (FL2VA)" and internal_frames == 20
         output_frame_index = 0
         output_strategy = "first_stable_edit" if dynamic_edit_selection else "fixed"
@@ -613,8 +623,7 @@ class H3ImagePrepare:
             })
             checkpoint_note = (
                 f"Use a REF2VA checkpoint; {len(references)} ordered reference image(s) encoded "
-                f"as {', '.join(reference_sizes)} and exposed as <Picture 1> through <Picture {len(references)}>."
-            )
+                f"as {', '.join(reference_sizes)} and exposed as <Picture 1> through <Picture {len(references)}>.")
 
         if natural_frames > 362:
             trained_note = "beyond the documented 124-362-frame training range"
@@ -623,15 +632,16 @@ class H3ImagePrepare:
         else:
             trained_note = "short experimental temporal packet chosen to reduce image-mode compute"
         decode_note = (
-            f"exact {requested_frames}-frame output"
+            f"exact {requested_frames}-frame batch"
             if requested_frames == natural_frames
-            else f"temporal latent naturally decodes {natural_frames} frames; H3 Exact Frame Decode crops to {requested_frames}"
+            else f"temporal latent naturally decodes {natural_frames} frames; H3 Exact Frame Decode keeps the requested {requested_frames}"
         )
         info = (
             f"Mode: {mode} | temporal profile: {internal_frames} frames | canvas {width}×{height} | "
-            f"internal packet {natural_frames} frames | requested output {requested_frames} | {decode_note} | "
+            f"internal packet {natural_frames} frames | decoded profile {requested_frames} | {decode_note} | "
             f"{trained_note}. {checkpoint_note} Decode only the video latent; the audio VAE is unnecessary for image output. "
-            f"Output selection: {output_strategy}; the other frames provide joint temporal context during sampling.{_prompt_warning(prompt)}"
+            f"Preferred output strategy: {output_strategy}; Single Image Output receives the full decoded profile and "
+            f"normally emits one selected frame unless emit_candidate_batch is enabled.{_prompt_warning(prompt)}"
         )
         return cond, latent, fitted_source, requested_frames, final_prompt, info
 
@@ -651,7 +661,11 @@ class H3TextToImagePrepare:
                     list(FRAME_PRESETS.keys()),
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
-                        "tooltip": "5 frames is recommended for the best speed/quality balance. 20 frames gives H3 more temporal context and may improve quality, but is much slower. Text-to-Image returns frame 0.",
+                        "tooltip": (
+                            "5 frames is the recommended speed/quality balance. 20 frames gives H3 more temporal "
+                            "context and is much slower. The complete profile reaches Single Image Output, which "
+                            "returns one selected still unless emit_candidate_batch is enabled."
+                        ),
                     },
                 ),
                 "optimize_for_still": ("BOOLEAN", {
@@ -709,7 +723,11 @@ class H3ImageToImagePrepare:
                     list(FRAME_PRESETS.keys()),
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
-                        "tooltip": "5 frames returns frame 0. With 20 frames, FL2VA may keep a variable number of initial frames close to the source anchor, so the decoder automatically finds the first stable edited frame. Only one image is emitted.",
+                        "tooltip": (
+                            "5 frames is the recommended edit profile. With 20 frames, FL2VA may retain source-like "
+                            "transition frames near the start. Exact Frame Decode now preserves the complete selected "
+                            "profile; Single Image Output scores it and normally emits one still."
+                        ),
                     },
                 ),
                 "source_fidelity": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05}),
@@ -772,7 +790,10 @@ class H3ReferenceEditPrepare:
                     list(FRAME_PRESETS.keys()),
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
-                        "tooltip": "5 frames is recommended for the best speed/quality balance. 20 frames gives REF2VA more temporal context and is much slower. Reference Edit returns frame 0, which is already edited in both profiles.",
+                        "tooltip": (
+                            "5 frames is the recommended speed/quality balance. 20 frames gives REF2VA more temporal "
+                            "context and is much slower. The complete profile is available to Single Image Output."
+                        ),
                     },
                 ),
                 "source_fidelity": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05}),
@@ -850,19 +871,35 @@ class H3ReferenceEditPrepare:
 
 
 class H3ImageDecode:
-    """Decode the H3 video stream and crop partial temporal packets exactly."""
+    """Decode the H3 video stream and preserve the selected temporal profile."""
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "samples": ("LATENT",),
-                "vae": ("VAE",),
+                "samples": (
+                    "LATENT",
+                    {
+                        "tooltip": (
+                            "Sampled H3 latent. Image Studio metadata specifies whether the selected profile contains "
+                            "5 or 20 frames."
+                        )
+                    },
+                ),
+                "vae": (
+                    "VAE",
+                    {"tooltip": "MiniMax H3 video VAE used to decode the video latent into an IMAGE batch."},
+                ),
             }
         }
 
     RETURN_TYPES = ("IMAGE", "INT", "STRING")
     RETURN_NAMES = ("frames", "decoded_frames", "decode_info")
+    OUTPUT_TOOLTIPS = (
+        "Complete decoded 5- or 20-frame profile passed to Single Image Output.",
+        "Number of images in the decoded profile batch.",
+        "Natural packet size, kept profile size and preferred-frame diagnostic information.",
+    )
     FUNCTION = "decode"
     CATEGORY = CATEGORY
 
@@ -876,40 +913,58 @@ class H3ImageDecode:
             images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
 
         natural_frames = int(images.shape[0])
-        requested_frames = max(1, int(samples.get("h3_requested_frames", natural_frames)))
+        profile_frames = max(
+            1,
+            int(samples.get("h3_context_frames", samples.get("h3_requested_frames", natural_frames))),
+        )
+        decoded_frames = min(profile_frames, natural_frames)
+        if decoded_frames < natural_frames:
+            images = images[:decoded_frames].clone()
+
         output_strategy = str(samples.get("h3_output_strategy", "fixed"))
         change_score = 0.0
         if output_strategy == "first_stable_edit":
-            output_frame_index, change_score = _first_stable_edit_frame(images)
+            preferred_index, change_score = _first_stable_edit_frame(images)
         else:
-            output_frame_index = max(0, int(samples.get("h3_output_frame_index", 0)))
-        output_frame_index = min(output_frame_index, natural_frames - 1)
-        available_frames = natural_frames - output_frame_index
-        decoded_frames = min(requested_frames, available_frames)
-        if output_frame_index > 0 or decoded_frames < natural_frames:
-            images = images[output_frame_index:output_frame_index + decoded_frames].clone()
+            preferred_index = max(0, int(samples.get("h3_output_frame_index", 0)))
+        preferred_index = min(preferred_index, decoded_frames - 1)
 
-        if available_frames < requested_frames:
-            info = f"Requested {requested_frames} frames from index {output_frame_index}, but only {available_frames} were available."
-        elif output_frame_index == 0 and natural_frames == requested_frames:
-            info = f"Decoded exactly {decoded_frames} frames from index {output_frame_index}."
+        if natural_frames == decoded_frames:
+            packet_note = f"Decoded the complete natural {natural_frames}-frame packet."
         else:
-            info = (
-                f"Decoded a {natural_frames}-frame packet and extracted {decoded_frames} frame(s) "
-                f"starting at index {output_frame_index} with strategy {output_strategy} "
-                f"(change score {change_score:.4f})."
+            packet_note = (
+                f"The temporal latent naturally decoded {natural_frames} frames; kept the requested "
+                f"{decoded_frames}-frame profile."
             )
+        info = (
+            f"{packet_note} Preferred still index {preferred_index} via {output_strategy} "
+            f"(change score {change_score:.4f}). No generated profile frames were discarded before Single Image Output."
+        )
         return images, decoded_frames, info
 
 
 class H3ImageFrameSelector:
-    """Select the strongest still from a decoded H3 frame batch using GPU-friendly metrics."""
+    """Select one still or expose the complete decoded H3 frame batch."""
+
+    DESCRIPTION = (
+        "Scores a decoded H3 image batch and normally emits one selected still. Enable emit_candidate_batch to send "
+        "the complete decoded batch through selected_image while retaining a ranked top-k diagnostic subset on the "
+        "second IMAGE output."
+    )
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "frames": ("IMAGE",),
+                "frames": (
+                    "IMAGE",
+                    {
+                        "tooltip": (
+                            "Decoded H3 IMAGE batch. With the supplied Exact Frame Decode node this contains the "
+                            "complete selected 5- or 20-frame profile."
+                        )
+                    },
+                ),
                 "strategy": ([
                     "stable_quality",
                     "balanced_edit",
@@ -919,22 +974,126 @@ class H3ImageFrameSelector:
                     "middle",
                     "last",
                     "manual_index",
-                ], {"default": "stable_quality"}),
-                "manual_index": ("INT", {"default": 1, "min": 0, "max": 4096, "step": 1}),
-                "skip_first_frames": ("INT", {"default": 1, "min": 0, "max": 128, "step": 1}),
-                "candidate_start": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05}),
-                "candidate_end": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05}),
-                "similarity_weight": ("FLOAT", {"default": 0.60, "min": 0.0, "max": 1.0, "step": 0.05}),
-                "top_k": ("INT", {"default": 4, "min": 1, "max": 16, "step": 1}),
+                ], {
+                    "default": "stable_quality",
+                    "tooltip": (
+                        "How the single preferred still is chosen. stable_quality favors sharp, clean and temporally "
+                        "stable frames. balanced_edit combines source similarity with stable quality. best_quality "
+                        "uses sharpness, contrast and exposure. most_similar_to_source requires source_image. sharpest "
+                        "uses edge detail only. middle, last and manual_index select a fixed frame without scoring."
+                    ),
+                }),
+                "manual_index": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 0,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "Zero-based frame index used only when strategy is manual_index.",
+                    },
+                ),
+                "skip_first_frames": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 0,
+                        "max": 128,
+                        "step": 1,
+                        "tooltip": (
+                            "Excludes this many initial frames from automatic scoring. Useful for FL2VA I2I because "
+                            "early frames may remain close to the source anchor. Ignored by middle, last and manual_index."
+                        ),
+                    },
+                ),
+                "candidate_start": (
+                    "FLOAT",
+                    {
+                        "default": 0.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.05,
+                        "tooltip": (
+                            "Fractional start of the automatic scoring range. 0.0 begins at the first frame and 0.5 "
+                            "begins halfway through. skip_first_frames can move the effective start later."
+                        ),
+                    },
+                ),
+                "candidate_end": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.05,
+                        "tooltip": (
+                            "Fractional end of the automatic scoring range. 1.0 includes the end of the decoded batch."
+                        ),
+                    },
+                ),
+                "similarity_weight": (
+                    "FLOAT",
+                    {
+                        "default": 0.60,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.05,
+                        "tooltip": (
+                            "Used only by balanced_edit when source_image is connected. Higher values favor source "
+                            "similarity; lower values favor sharpness, exposure, contrast and temporal stability."
+                        ),
+                    },
+                ),
+                "top_k": (
+                    "INT",
+                    {
+                        "default": 4,
+                        "min": 1,
+                        "max": 16,
+                        "step": 1,
+                        "tooltip": (
+                            "Maximum number of highest-scoring frames returned by candidate_batch_debug for automatic "
+                            "strategies. It does not limit selected_image when emit_candidate_batch is enabled: that "
+                            "main output contains every decoded frame. Fixed strategies return their chosen frame on "
+                            "candidate_batch_debug because they do not calculate a ranking."
+                        ),
+                    },
+                ),
             },
             "optional": {
-                "source_image": ("IMAGE",),
-                "emit_candidate_batch": ("BOOLEAN", {"default": False}),
+                "source_image": (
+                    "IMAGE",
+                    {
+                        "tooltip": (
+                            "Optional comparison image for most_similar_to_source and balanced_edit. Only the first "
+                            "image in the connected batch is used as the reference."
+                        )
+                    },
+                ),
+                "emit_candidate_batch": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": (
+                            "OFF: selected_image contains only the picked still. ON: selected_image contains the entire "
+                            "decoded 5- or 20-frame batch, so an already-connected Preview Image or Save Image node "
+                            "shows or saves every generated image. candidate_batch_debug remains the ranked top-k "
+                            "subset. Enabling this intentionally retains more RAM/VRAM."
+                        ),
+                    },
+                ),
             },
         }
 
     RETURN_TYPES = ("IMAGE", "IMAGE", "INT", "FLOAT", "STRING")
     RETURN_NAMES = ("selected_image", "candidate_batch_debug", "selected_index", "selected_score", "score_report")
+    OUTPUT_TOOLTIPS = (
+        "Single selected still when emit_candidate_batch is off; complete decoded batch when it is on.",
+        "Ranked top-k candidates for automatic strategies, or the fixed chosen frame for fixed strategies.",
+        "Zero-based index of the preferred still inside the original decoded batch.",
+        "Score assigned to the preferred still; fixed strategies return 1.0.",
+        "Human-readable scoring and emitted-batch report.",
+    )
     FUNCTION = "select"
     CATEGORY = CATEGORY
 
@@ -989,6 +1148,17 @@ class H3ImageFrameSelector:
         edge_error = 0.5 * (gx - rgx).abs().mean(dim=(1, 2, 3)) + 0.5 * (gy - rgy).abs().mean(dim=(1, 2, 3))
         return (1.0 - (0.75 * color_error + 0.25 * edge_error)).clamp(0.0, 1.0)
 
+    @staticmethod
+    def _empty_debug(frames: torch.Tensor) -> torch.Tensor:
+        # frames[:0] would remain backed by the complete decoded batch.
+        return frames.new_empty((0, *frames.shape[1:]))
+
+    @staticmethod
+    def _primary_output(frames: torch.Tensor, selected: torch.Tensor, emit_candidate_batch: bool) -> torch.Tensor:
+        # Clone so ComfyUI output caching owns independent storage rather than a
+        # view into another node's tensor.
+        return frames.clone() if emit_candidate_batch else selected
+
     def select(
         self,
         frames: torch.Tensor,
@@ -1008,22 +1178,33 @@ class H3ImageFrameSelector:
         n = int(frames.shape[0])
         if strategy == "manual_index":
             selected_index = max(0, min(n - 1, int(manual_index)))
-            # A slice is a view and would keep the storage for the entire decoded
-            # frame batch alive in ComfyUI's output cache. Clone the one selected
-            # frame so normal image output owns only its own storage.
             chosen = frames[selected_index:selected_index + 1].clone()
-            debug = chosen if emit_candidate_batch else frames.new_empty((0, *frames.shape[1:]))
-            return chosen, debug, selected_index, 1.0, f"Manual frame {selected_index}/{n - 1}"
+            primary = self._primary_output(frames, chosen, emit_candidate_batch)
+            debug = chosen.clone() if emit_candidate_batch else self._empty_debug(frames)
+            report = f"Manual frame {selected_index}/{n - 1}."
+            if emit_candidate_batch:
+                report += f" selected_image emits the complete {n}-frame batch; candidate_batch_debug contains the chosen frame."
+            return primary, debug, selected_index, 1.0, report
+
         if strategy == "middle":
             selected_index = n // 2
             chosen = frames[selected_index:selected_index + 1].clone()
-            debug = chosen if emit_candidate_batch else frames.new_empty((0, *frames.shape[1:]))
-            return chosen, debug, selected_index, 1.0, f"Middle frame {selected_index}/{n - 1}"
+            primary = self._primary_output(frames, chosen, emit_candidate_batch)
+            debug = chosen.clone() if emit_candidate_batch else self._empty_debug(frames)
+            report = f"Middle frame {selected_index}/{n - 1}."
+            if emit_candidate_batch:
+                report += f" selected_image emits the complete {n}-frame batch; candidate_batch_debug contains the chosen frame."
+            return primary, debug, selected_index, 1.0, report
+
         if strategy == "last":
             selected_index = n - 1
             chosen = frames[-1:].clone()
-            debug = chosen if emit_candidate_batch else frames.new_empty((0, *frames.shape[1:]))
-            return chosen, debug, selected_index, 1.0, f"Last frame {selected_index}/{n - 1}"
+            primary = self._primary_output(frames, chosen, emit_candidate_batch)
+            debug = chosen.clone() if emit_candidate_batch else self._empty_debug(frames)
+            report = f"Last frame {selected_index}/{n - 1}."
+            if emit_candidate_batch:
+                report += f" selected_image emits the complete {n}-frame batch; candidate_batch_debug contains the chosen frame."
+            return primary, debug, selected_index, 1.0, report
 
         start = max(int(skip_first_frames), int(math.floor(max(0.0, min(1.0, candidate_start)) * n)))
         start = min(n - 1, start)
@@ -1069,27 +1250,32 @@ class H3ImageFrameSelector:
         best_local = int(torch.argmax(scores).item())
         selected_index = int(candidate_indices[best_local].item())
         selected_score = float(scores[best_local].item())
-        # Detach the selected image from the full decoded batch's storage.
         selected = frames[selected_index:selected_index + 1].clone()
 
         if emit_candidate_batch:
-            k = min(int(top_k), len(scores))
+            k = min(max(1, int(top_k)), len(scores))
             top_local = torch.topk(scores, k=k, largest=True, sorted=True).indices
             top_global = candidate_indices[top_local].long()
-            candidate_output = frames.index_select(0, top_global)
+            candidate_output = frames.index_select(0, top_global).clone()
+            primary_output = frames.clone()
         else:
-            # frames[:0] would still be a view backed by the full batch. Return a
-            # genuinely independent zero-length tensor and skip all top-k copies.
-            candidate_output = frames.new_empty((0, *frames.shape[1:]))
+            candidate_output = self._empty_debug(frames)
+            primary_output = selected
 
         sim_text = "n/a" if similarity is None else f"{float(similarity[best_local]):.4f}"
         report = (
             f"Selected frame {selected_index}/{n - 1} with {strategy}; score={selected_score:.4f}, "
             f"sharpness={float(sharp_n[best_local]):.4f}, quality={float(quality[best_local]):.4f}, "
-            f"stability={float(stability[best_local]):.4f}, similarity={sim_text}; candidates={start}..{end - 1}; "
-            f"candidate batch {'emitted' if emit_candidate_batch else 'suppressed'}."
+            f"stability={float(stability[best_local]):.4f}, similarity={sim_text}; candidates={start}..{end - 1}."
         )
-        return selected, candidate_output, selected_index, selected_score, report
+        if emit_candidate_batch:
+            report += (
+                f" selected_image emits the complete {n}-frame decoded batch; "
+                f"candidate_batch_debug emits the best {int(candidate_output.shape[0])} candidate(s), limited by top_k."
+            )
+        else:
+            report += " Candidate batch suppressed."
+        return primary_output, candidate_output, selected_index, selected_score, report
 
 
 class H3SamplingSettings:
