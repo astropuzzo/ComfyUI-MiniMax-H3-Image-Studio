@@ -1,0 +1,20 @@
+[project]
+name = "minimax-h3-image-studio"
+version = "0.1.0"
+description = "Image-first ComfyUI nodes for MiniMax H3 text-to-image, image-to-image, and reference editing."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = []
+classifiers = [
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Repository = "https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio"
+"Bug Tracker" = "https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/issues"
+
+[tool.comfy]
+PublisherId = "FILL_ME_IN"
+DisplayName = "MiniMax H3 Image Studio"
+requires-comfyui = ">=0.30.0"
