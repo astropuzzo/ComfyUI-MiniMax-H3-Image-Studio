@@ -1,12 +1,10 @@
 # ComfyUI MiniMax H3 Image Studio v13
 
 > [!WARNING]
-> **Experimental, AI-coded project.** The entire extension and its documentation
-> were produced with AI-assisted coding, guided by repeated hands-on image tests.
-> The maintainer has no formal programming or model-engineering knowledge. Bugs,
-> incorrect assumptions, and hardware-specific behavior are possible. Code
-> review, corrections, suggestions, bug reports, and pull requests are very
-> welcome.
+> **Experimental, AI-coded project.** The extension and its documentation were
+> produced with AI-assisted coding, guided by repeated hands-on image tests.
+> Bugs, incorrect assumptions, and hardware-specific behavior are possible.
+> Code review, corrections, bug reports, and pull requests are welcome.
 
 Image-first ComfyUI nodes for using the open MiniMax H3 weights as a practical
 text-to-image, image-to-image, and reference-edit generator.
@@ -15,12 +13,14 @@ Built around the open [MiniMax H3 model](https://huggingface.co/MiniMaxAI/MiniMa
 ComfyUI's [official H3 implementation](https://docs.comfy.org/tutorials/video/minimax/minimax-h3),
 and the [Comfy-Org converted weights](https://huggingface.co/Comfy-Org/MiniMax-H3).
 
-The extension provides image-oriented conditioning, arbitrary frame counts,
-resolution controls up to 64 MP, official and manual sampling profiles,
-automatic still-frame scoring, reference editing, and single-image output that
-does not pin the decoded frame packet in memory.
+The extension provides image-oriented conditioning, validated 5/20-frame temporal
+profiles, resolution controls up to 64 MP, preset and advanced sampling controls,
+automatic still-frame scoring, reference editing, and optional full candidate-batch
+inspection.
 
 ## Installation
+
+**Requires ComfyUI 0.30.0 or newer.**
 
 ```bash
 cd ComfyUI/custom_nodes
@@ -29,93 +29,114 @@ git clone https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio.git
 
 Restart ComfyUI. No extra Python packages are required beyond the current
 ComfyUI installation. Models are not included or downloaded automatically; see
-the [Models](#models) section.
+[Models](#models).
 
 ## Feedback and contributions
 
 Please use [GitHub Issues](https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/issues)
-for bugs and suggestions. Because the project is experimental and AI-coded,
-independent technical review is especially valuable. Pull requests are welcome.
-
-For a useful bug report, include the ComfyUI version, GPU/VRAM, system RAM,
-checkpoint filenames, workflow mode, resolution, frames, steps, sampler profile,
-workflow JSON, relevant console output, and a description of expected versus
-actual behavior. Images demonstrating artifacts are helpful when they can be
-shared safely.
+for bugs and suggestions. For a useful report, include the ComfyUI version,
+GPU/VRAM, system RAM, checkpoint filenames, workflow mode, resolution, frame
+profile, steps, sampler/scheduler, workflow JSON, console output, and expected
+versus actual behavior.
 
 ## Important technical limit
 
 H3-Base is a video/audio model, not a natively trained one-frame diffusion
-checkpoint. Its temporal VAE naturally maps latent tokens to pixel-frame spans
-of `1,4,4,4,4` in a repeating pattern. A requested 20-frame context therefore
-uses the smallest covering packet, which naturally contains 22 decoded frames.
+checkpoint. Its temporal VAE maps latent tokens to pixel-frame spans of
+`1,4,4,4,4` in a repeating pattern. A requested 20-frame context therefore uses
+the smallest covering latent packet, which naturally decodes **22 frames**.
 
-Direct one-token generation remains experimental and can reproduce the soft,
-low-definition output seen in earlier tests. Controlled tests found frame 0 to
-be the useful still for T2I, REF2VA, and five-frame FL2VA edits. In 20-frame
-FL2VA I2I, however, the number of source-like transition frames varies by edit.
-The decoder therefore finds the first stable changed frame automatically.
+H3 denoises the complete temporal packet jointly, not frame by frame. A 20-frame
+run cannot stop after one frame and preserve the same result. Image Studio keeps
+the requested 5- or 20-frame profile after VAE decode, then selects the preferred
+still downstream.
 
 ## Image nodes
 
 - `MiniMax H3 Image • Text to Image` — use the **FL2VA** diffusion model.
-- `MiniMax H3 Image • Image to Image` — use **FL2VA** and a source-frame anchor.
-- `MiniMax H3 Image • Reference Edit` — use the separate **REF2VA** model, with
-  up to nine ordered reference images.
-- `MiniMax H3 Image • Resolution Preset` — safe H3-native aspect/size selection.
+- `MiniMax H3 Image • Image to Image` — use **FL2VA** with a source-frame anchor.
+- `MiniMax H3 Image • Reference Edit` — use **REF2VA**, with up to nine ordered
+  reference images.
+- `MiniMax H3 Image • Resolution Preset` — common aspect/size profiles.
 - `MiniMax H3 Image • Sampling Preset` — 20-step quality or 12-step speed.
-- `MiniMax H3 Image • Exact Frame Decode` — decodes the temporal packet and keeps
-  the mode-aware output frame for image output.
-- `MiniMax H3 Image • Single Image Output` — receives only that still in the
-  standard workflows, preventing image-feed extensions from showing every frame.
-Advanced resolution, sampling, and combined prepare nodes remain available for
-experimentation.
+- `MiniMax H3 Image • Exact Frame Decode` — decodes the temporal packet, removes
+  only natural VAE packet surplus, and preserves the complete requested profile.
+- `MiniMax H3 Image • Single Image Output` — scores the decoded profile and
+  normally emits one still; it can also expose the complete candidate batch.
+- `MiniMax H3 Image • Advanced Resolution` — manual canvas/grid controls.
+- `MiniMax H3 Image • Advanced Sampling` — manual sampler, scheduler, denoise,
+  H3 shifts, and custom beta controls.
+- `MiniMax H3 Image • Advanced Combined Prepare` — combined T2I/I2I/REF2VA
+  preparation for experimentation.
 
-## Frames
+All 10 nodes include `DESCRIPTION` metadata and in-UI tooltips for non-obvious
+controls.
 
-All three image workflows expose only two useful choices:
+## Frames and final selection
 
-- `recommended | 5 frames` — best observed speed/quality balance and the default.
-- `maximum quality | 20 frames (slow)` — gives H3 more temporal context and may
-  improve the selected still, but is much slower, especially at high resolution.
+All three image workflows expose two validated choices:
 
-H3 denoises the complete temporal packet jointly, not frame by frame. A 20-frame
-run cannot stop early after one image while preserving the same result. The
-plugin must compute the selected packet, then Exact Frame Decode keeps frame 0
-for T2I/REF2VA and dynamically finds the first mature edit for 20-frame FL2VA I2I.
+- `recommended | 5 frames` — best observed speed/quality balance and default.
+- `maximum quality | 20 frames (slow)` — more temporal context and much higher
+  compute/memory cost.
+
+Exact Frame Decode preserves the requested profile rather than destroying the
+other generated frames before selection. For a 20-frame request, the natural
+22-frame VAE packet is cropped to 20 **per batch item**. In 20-frame FL2VA I2I,
+the first stable edit index is also measured independently per batch item.
+
+`Single Image Output` behavior:
+
+- `emit_candidate_batch = false` — `selected_image` contains only the selected
+  still and `candidate_batch_debug` is empty.
+- `emit_candidate_batch = true` — `selected_image` contains the **complete decoded
+  profile**, so an already-connected Preview/Save node can show or save every
+  generated candidate.
+- `top_k` limits only `candidate_batch_debug`, which contains the highest-scoring
+  candidates. It does **not** limit the complete batch on `selected_image`.
+
+Source-dependent strategies (`balanced_edit`, `most_similar_to_source`) report
+an explicit fallback when `source_image` is missing instead of silently claiming
+the requested strategy ran.
 
 ### Recommended combinations
 
-These settings produced the most useful trade-offs during repeated local tests:
-
 | Goal | Frames | Steps | Result |
 |---|---:|---:|---|
-| Recommended speed/quality | 5 | 20 | Default frame profile with maximum-quality sampling |
-| Faster generation | 5 | 12 | Lower wait time with a possible quality reduction |
+| Recommended speed/quality | 5 | 20 | Default frame profile with quality sampling |
+| Faster generation | 5 | 12 | Lower latency with possible quality reduction |
 | Maximum quality | 20 | 20 | More temporal context; much slower |
 
 Frames above 20 and steps above 20 did not improve a still consistently enough
-to justify their cost, so they were removed from the simple presets. Results
-remain model- and prompt-dependent; softness, blockiness, banding, and grid
-artifacts can still occur.
+to justify their cost in the tested image workflows, so they are not exposed by
+the simple presets.
 
 ## Resolution
 
-The simple selector uses ComfyUI's megapixel convention (`1 MP = 1024² pixels`)
+The preset selector uses ComfyUI's megapixel convention (`1 MP = 1024² pixels`)
 and rounds to H3's 32-pixel grid. It includes 2, 4, and 8 MP presets plus a
-custom range from 0.1 to 64 MP. Oversize generation is unlocked by default;
-enable `limit_to_native_area` when you want the conservative `768 × 1344` area
-cap. For 16:9, `native detail | 0.98 MP` resolves to `1344 × 768`.
+custom 0.1–64 MP range. For 16:9, `native detail | 0.98 MP` resolves to
+`1344 × 768`.
 
-Direct 2K/4K generation is allowed, but H3-Base does not reproduce MiniMax's
-official H3-Regenerate-2K stage, whose weights are not currently open-sourced.
-High resolutions can consume dramatically more VRAM and may add pixels without
-adding equivalent learned detail. Use the unlocked sizes experimentally or use
-a dedicated image upscaler after native generation.
+`Resolution Preset` exposes `limit_to_native_area`; `Advanced Resolution` uses
+`native_area_cap`. Selecting `source image` without a connected image now raises
+an actionable error instead of silently producing a square canvas.
+
+The Advanced Resolution node no longer exposes the stale `custom_megapixels` and
+`limit_to_native_area` widgets that previously caused frontend execution errors.
+Its Python signature still accepts those old kwargs as ignored compatibility
+inputs so legacy workflows with link-converted widgets can continue to execute.
+
+Extreme aspect-ratio fitting now searches the feasible capped grid rather than
+collapsing to `32×32` when the nearby search has no valid pair.
+
+Direct 2K/4K/8 MP generation is allowed, but H3-Base does not reproduce MiniMax's
+unreleased H3-Regenerate-2K stage. High resolutions can consume dramatically more
+VRAM/RAM without proportional learned detail.
 
 ## Sampling
 
-The maximum-quality baseline uses:
+The validated quality baseline uses:
 
 - sampler: `res_multistep`
 - scheduler: `simple`
@@ -123,35 +144,51 @@ The maximum-quality baseline uses:
 - video/audio sigma shifts: `12 / 3`
 - CFG: none (`BasicGuider`; H3 checkpoints are CFG-distilled)
 
-This is the default `quality | 20 steps` preset. Choose `speed | 12 steps` for a
-faster result. These are the only simple presets for T2I, I2I, and Reference
-Edit; both use the official `res_multistep + simple` path.
-For fully manual sampler, scheduler, shifts, denoise, and steps, use the advanced
-`MiniMax H3 Sampling Settings` node.
+Choose `speed | 12 steps` for a faster preset. For manual controls use
+`MiniMax H3 Image • Advanced Sampling`.
 
-## Optimize for still
+Advanced Sampling applies the same ComfyUI-style denoise semantics to all
+schedulers, including `beta_custom`: values below 1 build a longer schedule and
+keep the final `steps + 1` sigmas, while `denoise = 0` returns empty sigmas. The
+H3 sampling patch also preserves the model config's existing `multiplier` when
+changing sigma shift.
+
+## Optimize for still / Source Fidelity
 
 `optimize_for_still` changes only the text sent to the H3 encoder. It adds a
-still-image wrapper asking for a locked camera, fixed composition, no cuts,
-motion, temporal progression, or audio, and crisp image detail. In I2I and
-Reference Edit it also adds source-preservation language based on
-`source_fidelity`. It does **not** change resolution, frames, steps, sampler,
-sigmas, or model weights. Disable it when you want the prompt passed through
-unchanged or when the preservation language is making an edit too conservative.
+locked-camera still-image wrapper and, for edit modes, preservation language.
+It does **not** change resolution, frame count, sampler, scheduler, sigmas, or
+model weights.
+
+`source_fidelity` / Source Fidelity likewise controls preservation language for
+identity, pose, perspective, composition, and geometry. **It is not a denoise
+slider.**
+
+## Advanced Combined Prepare
+
+The VAE input is optional in `Advanced Combined Prepare` because T2I does not
+encode a source image. I2I and REF2VA require the VAE and raise a clear per-mode
+error if it is missing.
+
+Reference images connected outside REF2VA mode are ignored and reported in
+`run_info`; a `source_image` connected in T2I is also reported as ignored.
 
 ## Prompting for images
 
 Describe the exact final frame: subject, pose, composition, lens/focus, lighting,
-background, materials, and style. Do not paste a timeline, camera move, cuts,
-soundscape, music, or second-by-second video prompt into image mode. The node
-adds a still-image wrapper and reports a warning when it detects conflicting
-video language, but it cannot infer which moment of a long video prompt you
-intended as the final still.
+background, materials, and style. Avoid timelines, cuts, camera motion, audio,
+or second-by-second video instructions in image mode. The still wrapper reports
+a warning when it detects conflicting video-language patterns.
 
-## Test setup
+## Performance notes
 
-The measurements below include the complete temporal-packet cost even though the
-current workflows save only one mode-aware still. Test setup:
+The measurements below are historical end-to-end wall-clock times from the local
+test setup. They include conditioning, sampling, VAE decode, selection, and
+saving. The original measurements predate the final user-facing `20 frames`
+label: a 20-frame request uses the same natural 22-frame VAE packet, so the core
+compute comparison remains applicable.
+
+Test setup used for these historical runs:
 
 - Windows 11 Pro with Stability Matrix
 - Intel Core i9-13900KF
@@ -161,193 +198,91 @@ current workflows save only one mode-aware still. Test setup:
 - Python 3.12.10
 - PyTorch 2.13.0 + CUDA 13.0
 - `cudaMallocAsync` and SageAttention
-- INT8 FL2VA/REF2VA model, NVFP4/AWQ Qwen encoder, and FP16 video VAE
+- INT8 FL2VA/REF2VA, NVFP4/AWQ Qwen encoder, FP16 video VAE
 
-Generation time and memory use will differ on other systems. High-resolution
-multi-frame decode can use tens of gigabytes of combined VRAM, RAM, and Windows
-commit/pagefile space.
+### Text to Image — resolution/frame sweep, 20 steps
 
-## Measured local performance
+| Resolution | Canvas | Requested | Natural | Time |
+|---:|---:|---:|---:|---:|
+| 1.99 MP | 1184×1760 | 5 | 5 | 27.8 s |
+| 1.99 MP | 1184×1760 | 20 | 22 | 50.1 s |
+| 3.96 MP | 1664×2496 | 5 | 5 | 38.9 s |
+| 3.96 MP | 1664×2496 | 20 | 22 | 138.6 s |
+| 8.02 MP | 2368×3552 | 5 | 5 | 84.0 s |
+| 8.02 MP | 2368×3552 | 20 | 22 | 401.8 s |
 
-These are end-to-end wall-clock times reported by ComfyUI as `Prompt executed
-in`, not estimates. They include conditioning, sampling, VAE decode, still
-selection, and saving. The median is more representative than a single run
-because model/cache state, source image, aspect ratio, and accumulated memory
-pressure can change the result.
+At 8 MP, moving from 5 to 20 requested frames increased the measured run from
+84 seconds to about 6 minutes 42 seconds without a proportional fidelity gain.
 
-The measurements were made before the final preset label changed from 22 to 20
-requested frames. This does not invalidate the comparison: a 20-frame request
-uses the same minimum natural 22-frame H3/VAE packet and crops it to exactly 20
-after decoding, so its main compute cost is effectively the same. The table
-therefore shows the current requested count and the natural packet in
-parentheses.
+### Historical manual beta tests
 
-### Text to Image — FL2VA
+Rows previously labelled `reference detail / beta` were **manual historical
+FL2VA I2I beta-scheduler tests**, not a current Sampling Preset and not REF2VA
+Reference Edit. They are retained only as historical measurements.
 
-#### Resolution and frame sweep — 20 steps
+| Resolution | Frames / steps | Natural | Historical scheduler | Median/time |
+|---:|---|---:|---|---:|
+| 0.99 MP | 5 / 20 | 5 | manual beta | 30.1 s |
+| 0.99 MP | 20 / 20 | 22 | manual beta | 32.3 s |
+| 1.99 MP | 20 / 20 | 22 | manual beta | 80.7 s |
 
-This earlier controlled sweep is the missing 1 / 2 / 4 / 8 MP comparison. The
-2, 4, and 8 MP pairs used the same prompt and seed; the 0.99 MP results are
-representative runs from the same test session.
+Results remain model-, prompt-, source-, and memory-state-dependent.
 
-| Resolution | Canvas | Requested frames | Natural frames | Runs | Median/time | Observed range |
-|---:|---:|---:|---:|---:|---:|---:|
-| 0.99 MP | 832 x 1248 | 20 | 22 | 2 | 28.7 s | 24.2–33.2 s |
-| 1.99 MP | 1184 x 1760 | 5 | 5 | 1 | 27.8 s | single run |
-| 1.99 MP | 1184 x 1760 | 20 | 22 | 1 | 50.1 s | single run |
-| 3.96 MP | 1664 x 2496 | 5 | 5 | 1 | 38.9 s | single run |
-| 3.96 MP | 1664 x 2496 | 20 | 22 | 1 | 138.6 s | single run |
-| 8.02 MP | 2368 x 3552 | 5 | 5 | 1 | 84.0 s | single run |
-| 8.02 MP | 2368 x 3552 | 20 | 22 | 1 | 401.8 s | single run |
+## Memory behavior
 
-The 8 MP result demonstrates the cost ceiling especially clearly: increasing
-from 5 to 20 requested frames raised the measured time from 84 seconds to about
-6 minutes 42 seconds without a proportional fidelity improvement.
+High-resolution multi-frame decode can consume tens of gigabytes of combined
+VRAM, RAM, and Windows commit/pagefile space. Metric scoring downsamples the
+candidate packet in small fp32 chunks instead of first upcasting the entire
+full-resolution packet, avoiding a very large transient allocation on high-MP
+20-frame decodes.
 
-#### Profile comparison — 1664 x 2496 (3.96 MP)
-
-| Current setting | Natural frames | Runs | Median | Observed range |
-|---|---:|---:|---:|---:|
-| 5 frames / 12 steps — speed | 5 | 6 | 36.2 s | 28.2–43.7 s |
-| 20 frames / 12 steps — slow comparison | 22 | 7 | 90.0 s | 83.9–133.1 s |
-| 20 frames / 20 steps — maximum observed quality | 22 | 11 | 141.4 s | 136.1–164.0 s |
-
-Two additional manual T2I checks at the same resolution took 41.8 seconds for
-5 frames / 20 steps and 79.4 seconds for 10 requested frames / 20 steps. Each
-was a single run, so treat those values as indicative only.
-
-### Image-to-Image edit — FL2VA
-
-#### Recommended-speed edit tests — 12 steps
-
-| Resolution | Current setting | Natural frames | Runs | Median | Observed range |
-|---|---|---:|---:|---:|---:|
-| about 2.0 MP | 20 frames / 12 steps | 22 | 16 | 54.0 s | 32.2–93.1 s |
-| 1.99 MP | 20 frames / 20 steps | 22 | 1 | 104.0 s | single run |
-| 3.01 MP | 20 frames / 12 steps | 22 | 1 | 87.6 s | single run |
-| 4.01 MP | 20 frames / 12 steps | 22 | 1 | 120.9 s | single run |
-
-The broad 2 MP range combines different portrait aspect ratios, source images,
-edit instructions, and cache/memory states. For a cleaner repeated comparison,
-the two latest 1184 x 1760 tests with the same 20-frame / 12-step setup took
-59.05 and 61.79 seconds, averaging 60.42 seconds.
-
-#### Earlier 20-step edit sweep
-
-These additional results include the missing native-resolution tests. The
-`reference detail` rows use the beta scheduler while remaining FL2VA
-Image-to-Image runs; they are not REF2VA Reference Edit.
-
-| Resolution | Current setting | Natural frames | Sampling profile | Runs | Median/time | Observed range |
-|---:|---|---:|---|---:|---:|---:|
-| 0.99 MP | 5 frames / 20 steps | 5 | reference detail / beta | 3 | 30.1 s | 21.8–31.9 s |
-| 0.99 MP | 20 frames / 20 steps | 22 | reference detail / beta | 3 | 32.3 s | 32.2–42.8 s |
-| 0.99 MP | 5 frames / 20 steps | 5 | official quality / simple | 1 | 25.4 s | single run |
-| 1.99 MP | 5 frames / 20 steps | 5 | official quality / simple | 1 | 43.7 s | single run |
-| 1.99 MP | 20 frames / 20 steps | 22 | reference detail / beta | 2 | 80.7 s | 75.2–86.2 s |
-| 3.96 MP | 5 frames / 20 steps | 5 | official quality / simple | 1 | 75.1 s | single run |
-
-These edit timings cover the FL2VA Image-to-Image workflow. REF2VA Reference
-Edit was tested and works, but its matching timestamped console log was no
-longer retained when this benchmark table was assembled, so no speculative
-REF2VA speed figure is published here.
-
-## Known limitations
-
-- H3 is fundamentally a video/audio model. This project adapts it for stills;
-  it does not turn the checkpoint into a native image diffusion model.
-- The selected 5- or 20-frame temporal packet is fully computed because H3 does
-  not generate frames sequentially. Only the mode-aware still is retained.
-- Direct one-token generation often has lower definition and stronger artifacts
-  than the five-frame fast path and is not used by the new default.
-- Direct 2–8 MP generation increases canvas size and memory far more reliably
-  than it increases learned fine detail. The unreleased Regenerate-2K stage is
-  not reproduced here.
-- Softness, blockiness, color banding, and grid-like artifacts can remain even
-  when sampling succeeds.
-- The selected still and disabled debug output no longer retain the complete
-  decoded packet. ComfyUI and PyTorch may still reserve reusable memory, and
-  generating many high-resolution frames remains inherently expensive.
+When `emit_candidate_batch` is disabled, Single Image Output clones only the
+selected still for its primary output and emits an independent empty debug
+tensor. When enabled, retaining the complete decoded batch is intentional and
+therefore uses more memory.
 
 ## Example workflows
 
-The `examples/` directory contains API-format JSON graphs. They are intended for
-ComfyUI's API/prompt format; `WORKFLOW_BUILD_GUIDE.txt` gives the equivalent
-manual canvas wiring. Change the model filenames if your installed variants use
-different names.
+The `examples/` directory contains API-format JSON graphs; the input names are
+unchanged, so existing example workflows remain compatible. See
+`examples/WORKFLOW_BUILD_GUIDE.txt` for manual canvas wiring.
 
 ### Text to Image — `H3_T2I_API.json`
 
-Uses the FL2VA checkpoint without a source image. Resolution Preset creates the
-canvas, Text to Image builds the H3 audio/video latent and still-oriented text
-conditioning, and SamplerCustomAdvanced performs sampling with BasicGuider. The
-published example uses the recommended five-frame profile with `speed | 12
-steps`. It computes the stable temporal packet and saves frame 0 only.
+Uses FL2VA without a source image. Resolution Preset creates the canvas, Text to
+Image builds still-oriented conditioning and the H3 temporal latent, and
+SamplerCustomAdvanced samples with BasicGuider.
 
 ### Image to Image — `H3_I2I_API.json`
 
-Uses FL2VA with the loaded picture encoded as the first-frame anchor. Source
-Fidelity controls how strongly the prompt wrapper asks H3 to preserve identity,
-pose, perspective, composition, and geometry; it is not a diffusion denoise
-slider. Exact Frame Decode keeps frame 0, and Single Image Output receives that
-single independent image in the five-frame profile. For 20-frame FL2VA I2I it
-compares the decoded frames with frame 0 and keeps the earliest frame where the
-edit has reached a stable change plateau.
+Uses FL2VA with the loaded image encoded as the frame-0 anchor. Connect
+`fitted_source` to `Single Image Output.source_image` when using source-aware
+selection such as `balanced_edit`.
 
-### Image Edit examples
+### Reference Edit — `H3_REFERENCE_EDIT_API.json`
 
-These are real FL2VA Image-to-Image results produced with the custom nodes. The
-examples show that broad semantic replacement can work while much of the source
-composition, camera position, and subject placement remains recognizable.
+Uses REF2VA. `source_image` is `<Picture 1>` and optional
+`reference_image_2`…`reference_image_9` are encoded independently, so different
+input dimensions/aspect ratios are supported. IMAGE batches are expanded into
+ordered references up to the same nine-image model limit.
 
-#### Environment replacement
+References keep their order and can be named in prompts as `<Picture 1>`,
+`<Picture 2>`, etc.
 
-Prompt: `Replace the moss and trees with ashes and burning lava flowing everywhere.`
+### Image edit examples
+
+Environment replacement prompt:
+`Replace the moss and trees with ashes and burning lava flowing everywhere.`
 
 | Before | After |
 |---|---|
 | <img src="assets/image-edit-examples/robot-moss-before.png" alt="Moss-covered robot before the edit"> | <img src="assets/image-edit-examples/robot-lava-after.png" alt="Burning robot surrounded by ashes and lava after the edit"> |
 
-Settings: 1472 x 2144, 3.01 MP, 20 requested / 22 natural frames, 12 steps,
-87.57 seconds.
-
-#### Subject replacement
-
-Prompt: `Replace the woman with a clown.`
+Subject replacement prompt: `Replace the woman with a clown.`
 
 | Before | After |
 |---|---|
 | <img src="assets/image-edit-examples/woman-car-before.png" alt="Woman standing in front of a car before the edit"> | <img src="assets/image-edit-examples/clown-car-after.png" alt="Clown standing in front of the same car after the edit"> |
-
-Settings: 1184 x 1760, 1.99 MP, 20 requested / 22 natural frames, 12 steps,
-58.41 seconds. The source was resized from its original 1664 x 2496 canvas.
-
-### Reference Edit — `H3_REFERENCE_EDIT_API.json`
-
-Uses the separate REF2VA checkpoint. The source is encoded as a visual reference
-rather than an exact first-frame anchor, making this workflow more suitable for
-changing clothing, materials, style, environment, or other semantic details.
-The node accepts `source_image` plus optional `reference_image_2` through
-`reference_image_9`; each image is resized and VAE-encoded independently, so
-different aspect ratios and dimensions are supported. An IMAGE batch connected
-to any reference socket is also expanded into individual references, up to the
-same nine-image model limit.
-
-References keep their input order and can be named directly in the edit prompt
-as `<Picture 1>`, `<Picture 2>`, and so on. For example: “keep the person and
-composition from `<Picture 1>`, but use the jacket from `<Picture 2>` and the
-lighting style from `<Picture 3>`.” The bundled API workflow demonstrates two
-Load Image nodes. Existing one-reference workflows remain valid without changes.
-The example uses the recommended five-frame profile with `quality | 20 steps`.
-Increase Source Fidelity for stricter identity and composition preservation;
-reduce it when the requested change is being resisted.
-
-### Exact decode and final selection
-
-All three examples send the sampled latent to Exact Frame Decode, not core
-`VAEDecode`. It decodes the selected temporal packet and immediately keeps the
-mode-aware frame. Single Image Output therefore receives one image. Keep
-`emit_candidate_batch` disabled for ordinary use.
 
 ## Graph
 
@@ -357,12 +292,10 @@ mode-aware frame. Single Image Output therefore receives one image. Keep
 4. Connect Resolution Preset to the chosen T2I/I2I/Edit node.
 5. Connect the diffusion model to Sampling Preset.
 6. Connect Sampling Preset's model to `BasicGuider`.
-7. Connect `RandomNoise`, `BasicGuider`, the preset sampler/sigmas, and the H3
-   latent to `SamplerCustomAdvanced`.
+7. Connect `RandomNoise`, `BasicGuider`, sampler/sigmas, and H3 latent to
+   `SamplerCustomAdvanced`.
 8. Decode with `MiniMax H3 Image • Exact Frame Decode` and the H3 video VAE.
-9. Send decoded frames to Single Image Output, then `SaveImage`.
-
-API-format examples are in `examples/`.
+9. Send decoded frames to `Single Image Output`, then `SaveImage`.
 
 ## Models
 
@@ -371,13 +304,13 @@ This extension intentionally does not contain a model downloader. Follow the
 and download the required files from
 [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3).
 
-Place the selected files in the standard ComfyUI model folders:
+Place files in the standard ComfyUI model folders:
 
 - diffusion checkpoints → `ComfyUI/models/diffusion_models/`
 - Qwen text encoder → `ComfyUI/models/text_encoders/`
 - video VAE → `ComfyUI/models/vae/`
 
-Recommended 24 GB VRAM filenames used by the included examples:
+Recommended 24 GB VRAM filenames used by the examples:
 
 - FL2VA: `minimax_h3_fl2va_pruned_int8_convrot.safetensors`
 - REF2VA: `minimax_h3_ref2va_pruned_int8_convrot.safetensors`
@@ -385,11 +318,15 @@ Recommended 24 GB VRAM filenames used by the included examples:
 - video VAE: `minimax_h3_video_vae_fp16.safetensors`
 
 The audio VAE is not used for image output. Restart ComfyUI after updating the
-extension so the new node schemas replace the cached definitions.
+extension so the new node schemas replace cached definitions.
+
+## Registry metadata
+
+`pyproject.toml` is included for ComfyUI Registry publishing and declares
+`requires-comfyui = ">=0.30.0"`. Replace `PublisherId = "FILL_ME_IN"` with your
+actual Comfy Registry publisher ID before running `comfy node publish`.
 
 ## License
 
-Released under [The Unlicense](LICENSE): public-domain dedication with permission
-to copy, modify, publish, use, compile, sell, or distribute the project for any
-commercial or non-commercial purpose. The MiniMax models, ComfyUI, and other
-third-party components retain their own licenses and are not relicensed here.
+Released under [The Unlicense](LICENSE). The MiniMax models, ComfyUI, and other
+third-party components retain their own licenses.
