@@ -113,7 +113,33 @@ def _fit_area_to_ratio(area: float, ratio: float, multiple: int, cap_pixels: Opt
             candidates.append((3.0 * aspect_error + area_error, -pixels, w, h))
 
     if not candidates:
-        return multiple, multiple
+        # Extreme aspect ratios can place every nearby pair above the area cap.
+        # Search the complete feasible grid instead of collapsing to multiple×multiple.
+        max_cells = max(1, int(target_area // (multiple * multiple)))
+        fallback = []
+        for hi in range(1, max_cells + 1):
+            ideal_wi = ratio * hi
+            max_wi = max(1, max_cells // hi)
+            width_cells = {
+                max(1, min(max_wi, int(math.floor(ideal_wi)))),
+                max(1, min(max_wi, int(round(ideal_wi)))),
+                max(1, min(max_wi, int(math.ceil(ideal_wi)))),
+                max_wi,
+            }
+            for wi in width_cells:
+                cells = wi * hi
+                if cells > max_cells:
+                    continue
+                w = wi * multiple
+                h = hi * multiple
+                pixels = w * h
+                aspect_error = abs(math.log((w / h) / ratio))
+                area_error = abs(pixels - target_area) / max(1.0, target_area)
+                fallback.append((3.0 * aspect_error + area_error, -pixels, w, h))
+        if not fallback:
+            return multiple, multiple
+        _, _, width, height = min(fallback)
+        return width, height
     _, _, width, height = min(candidates)
     return width, height
 
@@ -320,24 +346,94 @@ def _collect_reference_images(
     return references
 
 
+def _resolve_source_ratio(
+    aspect_ratio: str,
+    source_image: Optional[torch.Tensor],
+) -> Tuple[float, str]:
+    """Resolve a preset/source aspect ratio and fail early when a source is required."""
+    if aspect_ratio == "source image":
+        if source_image is None:
+            raise ValueError(
+                'Aspect ratio "source image" requires a connected source_image. '
+                "Connect an IMAGE or choose an explicit aspect ratio."
+            )
+        if not isinstance(source_image, torch.Tensor) or source_image.ndim != 4 or source_image.shape[0] < 1:
+            raise ValueError("source_image must be a non-empty ComfyUI IMAGE batch [B,H,W,C].")
+        h, w = int(source_image.shape[1]), int(source_image.shape[2])
+        if h < 1 or w < 1:
+            raise ValueError("source_image has invalid spatial dimensions.")
+        return w / h, f"source ratio {w}:{h}"
+
+    rw, rh = ASPECT_RATIOS[aspect_ratio]
+    return rw / rh, aspect_ratio
+
+
 class H3ImageResolution:
     """H3-aware resolution selector with source-ratio and native-area safeguards."""
+
+    DESCRIPTION = (
+        "Advanced canvas calculator. Supports explicit ratios, source-image ratio and custom dimensions while "
+        "optionally limiting the result to H3's native pixel area. Legacy stale resolution kwargs are accepted but ignored."
+    )
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "aspect_ratio": (["source image"] + list(ASPECT_RATIOS.keys()) + ["custom dimensions"],),
-                "megapixels": ("FLOAT", {"default": 1.00, "min": 0.10, "max": 64.00, "step": 0.10}),
-                "multiple": ([32, 64], {"default": 32}),
-                "native_area_cap": ("BOOLEAN", {"default": True}),
-                "custom_width": ("INT", {"default": 2048, "min": 32, "max": 16384, "step": 32}),
-                "custom_height": ("INT", {"default": 2048, "min": 32, "max": 16384, "step": 32}),
+                "aspect_ratio": (
+                    ["source image"] + list(ASPECT_RATIOS.keys()) + ["custom dimensions"],
+                    {
+                        "tooltip": (
+                            'Canvas aspect ratio. "source image" requires source_image; custom dimensions uses the '
+                            "custom_width/custom_height widgets."
+                        )
+                    },
+                ),
+                "megapixels": (
+                    "FLOAT",
+                    {
+                        "default": 1.00, "min": 0.10, "max": 64.00, "step": 0.10,
+                        "tooltip": "Target megapixels using ComfyUI's 1 MP = 1024² convention. Ignored for custom dimensions.",
+                    },
+                ),
+                "multiple": (
+                    [32, 64],
+                    {
+                        "default": 32,
+                        "tooltip": "Rounds both canvas axes to this H3-compatible grid multiple.",
+                    },
+                ),
+                "native_area_cap": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": (
+                            "When enabled, caps total pixels near H3's native 768×1344 area while preserving the requested ratio."
+                        ),
+                    },
+                ),
+                "custom_width": (
+                    "INT",
+                    {
+                        "default": 2048, "min": 32, "max": 16384, "step": 32,
+                        "tooltip": 'Used only when aspect_ratio is "custom dimensions".',
+                    },
+                ),
+                "custom_height": (
+                    "INT",
+                    {
+                        "default": 2048, "min": 32, "max": 16384, "step": 32,
+                        "tooltip": 'Used only when aspect_ratio is "custom dimensions".',
+                    },
+                ),
             },
             "optional": {
-                "source_image": ("IMAGE",),
-                "custom_megapixels": ("FLOAT", {"default": 2.0, "min": 0.10, "max": 64.0, "step": 0.10}),
-                "limit_to_native_area": ("BOOLEAN", {"default": False}),
+                "source_image": (
+                    "IMAGE",
+                    {
+                        "tooltip": 'Required only when aspect_ratio is "source image".',
+                    },
+                ),
             },
         }
 
@@ -355,7 +451,14 @@ class H3ImageResolution:
         custom_width: int,
         custom_height: int,
         source_image: Optional[torch.Tensor] = None,
+        custom_megapixels: Optional[float] = None,
+        limit_to_native_area: Optional[bool] = None,
     ):
+        # custom_megapixels / limit_to_native_area were accidentally exposed by
+        # earlier Advanced Resolution schemas. Keep accepting them so legacy
+        # workflows with link-converted widgets remain executable.
+        del custom_megapixels, limit_to_native_area
+
         multiple = int(multiple)
         cap = NATIVE_MAX_PIXELS if native_area_cap else None
 
@@ -366,18 +469,7 @@ class H3ImageResolution:
                 width, height = _fit_area_to_ratio(cap, width / height, multiple, cap)
             source = "custom"
         else:
-            if aspect_ratio == "source image":
-                if source_image is not None:
-                    h, w = int(source_image.shape[1]), int(source_image.shape[2])
-                    ratio = w / max(1, h)
-                    source = f"source ratio {w}:{h}"
-                else:
-                    ratio = 1.0
-                    source = "source missing; square fallback"
-            else:
-                rw, rh = ASPECT_RATIOS[aspect_ratio]
-                ratio = rw / rh
-                source = aspect_ratio
+            ratio, source = _resolve_source_ratio(aspect_ratio, source_image)
             target_area = float(megapixels) * MEBIPIXEL
             if cap is not None:
                 target_area = min(target_area, cap)
@@ -396,20 +488,51 @@ class H3ImageResolution:
 class H3ImageResolutionPreset:
     """Simple H3-native selector using the same megapixel convention as ComfyUI."""
 
+    DESCRIPTION = (
+        "Preset canvas calculator for common aspect ratios and H3 image-size profiles. Source-image ratio fails early "
+        "with an actionable error when no image is connected."
+    )
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "aspect_ratio": (["source image"] + list(ASPECT_RATIOS.keys()),),
+                "aspect_ratio": (
+                    ["source image"] + list(ASPECT_RATIOS.keys()),
+                    {
+                        "tooltip": 'Choose a preset ratio or use "source image" to copy the connected image ratio.',
+                    },
+                ),
                 "resolution_profile": (
                     list(RESOLUTION_PROFILES.keys()),
-                    {"default": "native detail | 0.98 MP"},
+                    {
+                        "default": "native detail | 0.98 MP",
+                        "tooltip": (
+                            "Target pixel area. Higher profiles increase VRAM/RAM and decode cost; H3 learned detail "
+                            "does not necessarily scale proportionally."
+                        ),
+                    },
                 ),
             },
             "optional": {
-                "source_image": ("IMAGE",),
-                "custom_megapixels": ("FLOAT", {"default": 2.0, "min": 0.10, "max": 64.0, "step": 0.10}),
-                "limit_to_native_area": ("BOOLEAN", {"default": False}),
+                "source_image": (
+                    "IMAGE",
+                    {"tooltip": 'Required only when aspect_ratio is "source image".'},
+                ),
+                "custom_megapixels": (
+                    "FLOAT",
+                    {
+                        "default": 2.0, "min": 0.10, "max": 64.0, "step": 0.10,
+                        "tooltip": 'Used only when resolution_profile is "custom megapixels".',
+                    },
+                ),
+                "limit_to_native_area": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "Conservatively caps the result to approximately H3's native 768×1344 pixel area.",
+                    },
+                ),
             },
         }
 
@@ -426,16 +549,7 @@ class H3ImageResolutionPreset:
         custom_megapixels: float = 2.0,
         limit_to_native_area: bool = False,
     ):
-        if aspect_ratio == "source image":
-            if source_image is None:
-                raise ValueError("source image aspect ratio requires source_image")
-            h, w = int(source_image.shape[1]), int(source_image.shape[2])
-            ratio = w / max(1, h)
-            source = f"source ratio {w}:{h}"
-        else:
-            rw, rh = ASPECT_RATIOS[aspect_ratio]
-            ratio = rw / rh
-            source = aspect_ratio
+        ratio, source = _resolve_source_ratio(aspect_ratio, source_image)
 
         target_mp = RESOLUTION_PROFILES[resolution_profile]
         if target_mp is None:
@@ -469,46 +583,118 @@ class H3ImageResolutionPreset:
 class H3ImagePrepare:
     """Prepare MiniMax H3 conditioning and AV latent for still-image extraction."""
 
+    DESCRIPTION = (
+        "Advanced combined T2I/I2I/REF2VA preparation node. The VAE is optional for text-to-image but required for "
+        "image-to-image and reference editing. The full 5- or 20-frame temporal profile is preserved for final selection."
+    )
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "clip": ("CLIP",),
-                "vae": ("VAE",),
-                "mode": ([
-                    "text_to_image (FL2VA)",
-                    "image_to_image (FL2VA)",
-                    "reference_edit (REF2VA)",
-                ],),
-                "prompt": ("STRING", {"multiline": True, "dynamicPrompts": True, "default": ""}),
-                "width": ("INT", {"default": 1344, "min": 32, "max": 16384, "step": 32}),
-                "height": ("INT", {"default": 768, "min": 32, "max": 16384, "step": 32}),
+                "clip": (
+                    "CLIP",
+                    {"tooltip": "MiniMax H3 Qwen text/vision encoder."},
+                ),
+                "mode": (
+                    [
+                        "text_to_image (FL2VA)",
+                        "image_to_image (FL2VA)",
+                        "reference_edit (REF2VA)",
+                    ],
+                    {
+                        "tooltip": (
+                            "Select the H3 conditioning path. T2I and I2I use FL2VA; Reference Edit uses REF2VA."
+                        )
+                    },
+                ),
+                "prompt": (
+                    "STRING",
+                    {
+                        "multiline": True, "dynamicPrompts": True, "default": "",
+                        "tooltip": "Final still description or edit instruction.",
+                    },
+                ),
+                "width": (
+                    "INT",
+                    {"default": 1344, "min": 32, "max": 16384, "step": 32, "tooltip": "Output canvas width."},
+                ),
+                "height": (
+                    "INT",
+                    {"default": 768, "min": 32, "max": 16384, "step": 32, "tooltip": "Output canvas height."},
+                ),
                 "frame_preset": (
                     list(FRAME_PRESETS.keys()),
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
                         "tooltip": (
-                            "H3 is a video model, so still quality depends on temporal context. The complete 5- or "
-                            "20-frame profile is decoded for the Single Image Output node. That node normally returns "
-                            "one selected still, or the full batch when emit_candidate_batch is enabled."
+                            "H3 jointly denoises the entire temporal packet. The complete selected 5- or 20-frame "
+                            "profile is decoded for Single Image Output; that node normally emits one selected still "
+                            "or the full batch when emit_candidate_batch is enabled."
                         ),
                     },
                 ),
-                "optimize_prompt": ("BOOLEAN", {"default": True}),
-                "preserve_strength": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05}),
-                "source_fit": (["crop_center", "contain_pad", "stretch"], {"default": "crop_center"}),
-                "reference_size": (["match_generation_area", "max_identity_2048"], {"default": "match_generation_area"}),
+                "optimize_prompt": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "Adds still-image wording and, for edit modes, source-preservation instructions.",
+                    },
+                ),
+                "preserve_strength": (
+                    "FLOAT",
+                    {
+                        "default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05,
+                        "tooltip": (
+                            "Prompt-language preservation strength for I2I/REF2VA. This is NOT diffusion denoise "
+                            "strength and does not change the sampler schedule."
+                        ),
+                    },
+                ),
+                "source_fit": (
+                    ["crop_center", "contain_pad", "stretch"],
+                    {
+                        "default": "crop_center",
+                        "tooltip": "How source/reference content is fitted to the generation canvas.",
+                    },
+                ),
+                "reference_size": (
+                    ["match_generation_area", "max_identity_2048"],
+                    {
+                        "default": "match_generation_area",
+                        "tooltip": (
+                            "REF2VA reference encoding size. max_identity_2048 keeps more source resolution when available "
+                            "and can cost more memory."
+                        ),
+                    },
+                ),
             },
             "optional": {
-                "source_image": ("IMAGE",),
-                "reference_image_2": ("IMAGE",),
-                "reference_image_3": ("IMAGE",),
-                "reference_image_4": ("IMAGE",),
-                "reference_image_5": ("IMAGE",),
-                "reference_image_6": ("IMAGE",),
-                "reference_image_7": ("IMAGE",),
-                "reference_image_8": ("IMAGE",),
-                "reference_image_9": ("IMAGE",),
+                "vae": (
+                    "VAE",
+                    {
+                        "tooltip": (
+                            "Required for Image to Image and Reference Edit because source/reference images must be "
+                            "encoded. Text to Image does not use it."
+                        )
+                    },
+                ),
+                "source_image": (
+                    "IMAGE",
+                    {
+                        "tooltip": (
+                            "Required for I2I and REF2VA. If connected in T2I it is ignored and run_info reports that fact."
+                        )
+                    },
+                ),
+                "reference_image_2": ("IMAGE", {"tooltip": "Optional REF2VA <Picture 2>; ignored outside Reference Edit."}),
+                "reference_image_3": ("IMAGE", {"tooltip": "Optional REF2VA <Picture 3>; ignored outside Reference Edit."}),
+                "reference_image_4": ("IMAGE", {"tooltip": "Optional REF2VA <Picture 4>; ignored outside Reference Edit."}),
+                "reference_image_5": ("IMAGE", {"tooltip": "Optional REF2VA <Picture 5>; ignored outside Reference Edit."}),
+                "reference_image_6": ("IMAGE", {"tooltip": "Optional REF2VA <Picture 6>; ignored outside Reference Edit."}),
+                "reference_image_7": ("IMAGE", {"tooltip": "Optional REF2VA <Picture 7>; ignored outside Reference Edit."}),
+                "reference_image_8": ("IMAGE", {"tooltip": "Optional REF2VA <Picture 8>; ignored outside Reference Edit."}),
+                "reference_image_9": ("IMAGE", {"tooltip": "Optional REF2VA <Picture 9>; ignored outside Reference Edit."}),
             },
         }
 
@@ -520,7 +706,6 @@ class H3ImagePrepare:
     def prepare(
         self,
         clip,
-        vae,
         mode: str,
         prompt: str,
         width: int,
@@ -530,6 +715,7 @@ class H3ImagePrepare:
         preserve_strength: float,
         source_fit: str,
         reference_size: str,
+        vae=None,
         source_image: Optional[torch.Tensor] = None,
         reference_image_2: Optional[torch.Tensor] = None,
         reference_image_3: Optional[torch.Tensor] = None,
@@ -544,15 +730,9 @@ class H3ImagePrepare:
         height = _round_to_multiple(height, CANVAS_MULTIPLE)
         internal_frames = _resolve_frame_count(frame_preset)
 
-        # The previous implementation requested only one decoded frame. That made
-        # emit_candidate_batch impossible: the selector received a one-image batch
-        # after Exact Frame Decode had already discarded every other generated frame.
-        # Decode the complete selected temporal profile and let the downstream
-        # selector decide whether to emit one still or the complete batch.
+        # Preserve the complete selected temporal profile. Single Image Output
+        # decides whether to expose one still or every generated candidate.
         output_frames = internal_frames
-
-        # Keep the preferred-frame metadata for diagnostics. Exact Frame Decode no
-        # longer destroys the surrounding frames; it reports the preferred index.
         dynamic_edit_selection = mode == "image_to_image (FL2VA)" and internal_frames == 20
         output_frame_index = 0
         output_strategy = "first_stable_edit" if dynamic_edit_selection else "fixed"
@@ -564,10 +744,17 @@ class H3ImagePrepare:
             output_frame_index=output_frame_index,
             output_strategy=output_strategy,
         )
+
         additional_references = (
             reference_image_2, reference_image_3, reference_image_4, reference_image_5,
             reference_image_6, reference_image_7, reference_image_8, reference_image_9,
         )
+        ignored_notes = []
+        if mode != "reference_edit (REF2VA)" and any(image is not None for image in additional_references):
+            ignored_notes.append("Additional reference_image_2..9 inputs are connected but ignored outside REF2VA mode.")
+        if mode == "text_to_image (FL2VA)" and source_image is not None:
+            ignored_notes.append("source_image is connected but ignored in Text to Image mode.")
+
         references = (
             _collect_reference_images(source_image, additional_references)
             if mode == "reference_edit (REF2VA)" and source_image is not None
@@ -587,7 +774,9 @@ class H3ImagePrepare:
 
         elif mode == "image_to_image (FL2VA)":
             if source_image is None:
-                raise ValueError("image_to_image mode requires source_image")
+                raise ValueError("Image to Image mode requires source_image.")
+            if vae is None:
+                raise ValueError("Image to Image mode requires a VAE to encode source_image.")
             fitted_source = _resize_image(source_image[:1], width, height, source_fit)
             tokens = clip.tokenize(final_prompt, images=[fitted_source])
             cond = clip.encode_from_tokens_scheduled(tokens)
@@ -600,7 +789,9 @@ class H3ImagePrepare:
 
         else:
             if source_image is None:
-                raise ValueError("reference_edit mode requires source_image")
+                raise ValueError("Reference Edit mode requires source_image as <Picture 1>.")
+            if vae is None:
+                raise ValueError("Reference Edit mode requires a VAE to encode the reference image(s).")
             fitted_source = _resize_image(references[0], width, height, source_fit)
             ref_mode = "max_identity_2048" if reference_size == "max_identity_2048" else "match_generation_area"
             ref_items = []
@@ -623,7 +814,8 @@ class H3ImagePrepare:
             })
             checkpoint_note = (
                 f"Use a REF2VA checkpoint; {len(references)} ordered reference image(s) encoded "
-                f"as {', '.join(reference_sizes)} and exposed as <Picture 1> through <Picture {len(references)}>.")
+                f"as {', '.join(reference_sizes)} and exposed as <Picture 1> through <Picture {len(references)}>。"
+            )
 
         if natural_frames > 362:
             trained_note = "beyond the documented 124-362-frame training range"
@@ -636,18 +828,24 @@ class H3ImagePrepare:
             if requested_frames == natural_frames
             else f"temporal latent naturally decodes {natural_frames} frames; H3 Exact Frame Decode keeps the requested {requested_frames}"
         )
+        ignored_text = f" {' '.join(ignored_notes)}" if ignored_notes else ""
         info = (
             f"Mode: {mode} | temporal profile: {internal_frames} frames | canvas {width}×{height} | "
             f"internal packet {natural_frames} frames | decoded profile {requested_frames} | {decode_note} | "
             f"{trained_note}. {checkpoint_note} Decode only the video latent; the audio VAE is unnecessary for image output. "
             f"Preferred output strategy: {output_strategy}; Single Image Output receives the full decoded profile and "
-            f"normally emits one selected frame unless emit_candidate_batch is enabled.{_prompt_warning(prompt)}"
+            f"normally emits one selected frame unless emit_candidate_batch is enabled.{ignored_text}{_prompt_warning(prompt)}"
         )
         return cond, latent, fitted_source, requested_frames, final_prompt, info
 
 
 class H3TextToImagePrepare:
     """Image-first T2I conditioning with H3's temporal packet hidden behind quality profiles."""
+
+    DESCRIPTION = (
+        "Prepares FL2VA text-to-image conditioning and a short H3 temporal packet for still generation. No VAE is "
+        "required at this preparation stage; decode still requires the H3 video VAE downstream."
+    )
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -709,6 +907,11 @@ class H3TextToImagePrepare:
 class H3ImageToImagePrepare:
     """FL2VA source-anchor workflow presented as image-to-image."""
 
+    DESCRIPTION = (
+        "Prepares FL2VA image-to-image conditioning with the source encoded as frame-0 anchor. Source Fidelity changes "
+        "preservation language only; it is not a denoise slider."
+    )
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -730,7 +933,16 @@ class H3ImageToImagePrepare:
                         ),
                     },
                 ),
-                "source_fidelity": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05}),
+                "source_fidelity": (
+                    "FLOAT",
+                    {
+                        "default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05,
+                        "tooltip": (
+                            "Controls how strongly the still prompt asks H3 to preserve identity, pose, composition and "
+                            "geometry. This is NOT diffusion denoise strength and does not alter the sigma schedule."
+                        ),
+                    },
+                ),
                 "source_fit": (["crop_center", "contain_pad", "stretch"], {"default": "crop_center"}),
                 "optimize_for_still": ("BOOLEAN", {
                     "default": True,
@@ -776,6 +988,11 @@ class H3ImageToImagePrepare:
 class H3ReferenceEditPrepare:
     """REF2VA reference-guided regeneration exposed as an image edit node."""
 
+    DESCRIPTION = (
+        "Prepares REF2VA reference-guided image editing with up to nine ordered references. Source Fidelity changes "
+        "preservation language only; it is not a denoise slider."
+    )
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -796,11 +1013,26 @@ class H3ReferenceEditPrepare:
                         ),
                     },
                 ),
-                "source_fidelity": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05}),
+                "source_fidelity": (
+                    "FLOAT",
+                    {
+                        "default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05,
+                        "tooltip": (
+                            "Controls how strongly the still prompt asks H3 to preserve identity, pose, composition and "
+                            "geometry. This is NOT diffusion denoise strength and does not alter the sigma schedule."
+                        ),
+                    },
+                ),
                 "source_fit": (["crop_center", "contain_pad", "stretch"], {"default": "crop_center"}),
                 "reference_detail": (
                     ["match_generation_area", "max_identity_2048"],
-                    {"default": "match_generation_area"},
+                    {
+                        "default": "match_generation_area",
+                        "tooltip": (
+                            "How much source resolution each REF2VA reference keeps before VAE encoding. "
+                            "max_identity_2048 may preserve more identity detail at higher memory cost."
+                        ),
+                    },
                 ),
                 "optimize_for_still": ("BOOLEAN", {
                     "default": True,
@@ -873,6 +1105,12 @@ class H3ReferenceEditPrepare:
 class H3ImageDecode:
     """Decode the H3 video stream and preserve the selected temporal profile."""
 
+    DESCRIPTION = (
+        "Decodes the H3 video latent, crops natural packet surplus independently for every batch item, and preserves "
+        "the complete requested 5- or 20-frame profile for Single Image Output. In 20-frame FL2VA I2I, the preferred "
+        "stable-edit index is measured independently for each batch item."
+    )
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -881,8 +1119,8 @@ class H3ImageDecode:
                     "LATENT",
                     {
                         "tooltip": (
-                            "Sampled H3 latent. Image Studio metadata specifies whether the selected profile contains "
-                            "5 or 20 frames."
+                            "Sampled H3 latent. Image Studio metadata specifies whether each batch item keeps a 5- or "
+                            "20-frame temporal profile."
                         )
                     },
                 ),
@@ -896,9 +1134,9 @@ class H3ImageDecode:
     RETURN_TYPES = ("IMAGE", "INT", "STRING")
     RETURN_NAMES = ("frames", "decoded_frames", "decode_info")
     OUTPUT_TOOLTIPS = (
-        "Complete decoded 5- or 20-frame profile passed to Single Image Output.",
-        "Number of images in the decoded profile batch.",
-        "Natural packet size, kept profile size and preferred-frame diagnostic information.",
+        "Complete decoded profile(s), flattened batch-major for standard ComfyUI IMAGE output.",
+        "Total number of emitted images across all batch items.",
+        "Natural packet size, kept profile size and preferred-frame diagnostic information per batch item.",
     )
     FUNCTION = "decode"
     CATEGORY = CATEGORY
@@ -908,39 +1146,68 @@ class H3ImageDecode:
         if latent.is_nested:
             latent = latent.unbind()[0]
 
+        latent_batch = int(latent.shape[0]) if hasattr(latent, "shape") and len(latent.shape) > 0 else 1
         images = vae.decode(latent)
-        if images.ndim == 5:
-            images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
 
-        natural_frames = int(images.shape[0])
         profile_frames = max(
             1,
-            int(samples.get("h3_context_frames", samples.get("h3_requested_frames", natural_frames))),
+            int(samples.get("h3_context_frames", samples.get("h3_requested_frames", 1))),
         )
-        decoded_frames = min(profile_frames, natural_frames)
-        if decoded_frames < natural_frames:
-            images = images[:decoded_frames].clone()
-
         output_strategy = str(samples.get("h3_output_strategy", "fixed"))
-        change_score = 0.0
-        if output_strategy == "first_stable_edit":
-            preferred_index, change_score = _first_stable_edit_frame(images)
-        else:
-            preferred_index = max(0, int(samples.get("h3_output_frame_index", 0)))
-        preferred_index = min(preferred_index, decoded_frames - 1)
 
-        if natural_frames == decoded_frames:
-            packet_note = f"Decoded the complete natural {natural_frames}-frame packet."
+        # Prefer an explicit [B,T,H,W,C] decode. If a VAE returns a flattened
+        # [B*T,H,W,C] tensor, recover B/T only when the latent batch makes that
+        # interpretation unambiguous; otherwise preserve historical single-batch behavior.
+        if images.ndim == 5:
+            batched = images
+        elif images.ndim == 4 and latent_batch > 1 and int(images.shape[0]) % latent_batch == 0:
+            frames_per_item = int(images.shape[0]) // latent_batch
+            batched = images.reshape(latent_batch, frames_per_item, *images.shape[-3:])
+        else:
+            batched = images.unsqueeze(0)
+
+        batch_size = int(batched.shape[0])
+        natural_frames = int(batched.shape[1])
+        kept_frames = min(profile_frames, natural_frames)
+        kept = batched[:, :kept_frames]
+
+        preferred_indices = []
+        change_scores = []
+        fixed_index = max(0, int(samples.get("h3_output_frame_index", 0)))
+        for batch_index in range(batch_size):
+            item = kept[batch_index]
+            if output_strategy == "first_stable_edit":
+                preferred_index, change_score = _first_stable_edit_frame(item)
+            else:
+                preferred_index, change_score = fixed_index, 0.0
+            preferred_index = min(max(0, int(preferred_index)), kept_frames - 1)
+            preferred_indices.append(preferred_index)
+            change_scores.append(float(change_score))
+
+        # Standard ComfyUI IMAGE is [N,H,W,C], so flatten batch-major after each
+        # batch item has been cropped independently. Clone only when cropping or
+        # reshaping would otherwise retain surplus packet storage.
+        images_out = kept.reshape(-1, *kept.shape[-3:]).clone()
+        decoded_frames = int(images_out.shape[0])
+
+        if natural_frames == kept_frames:
+            packet_note = f"Decoded the complete natural {natural_frames}-frame packet per batch item."
         else:
             packet_note = (
-                f"The temporal latent naturally decoded {natural_frames} frames; kept the requested "
-                f"{decoded_frames}-frame profile."
+                f"The temporal latent naturally decoded {natural_frames} frames per batch item; kept the requested "
+                f"{kept_frames}-frame profile for each item."
             )
-        info = (
-            f"{packet_note} Preferred still index {preferred_index} via {output_strategy} "
-            f"(change score {change_score:.4f}). No generated profile frames were discarded before Single Image Output."
+
+        preferred_text = ", ".join(
+            f"b{index}:frame {preferred_indices[index]} (change {change_scores[index]:.4f})"
+            for index in range(batch_size)
         )
-        return images, decoded_frames, info
+        info = (
+            f"{packet_note} Batch items={batch_size}; emitted images={decoded_frames}. "
+            f"Preferred still(s) via {output_strategy}: {preferred_text}. "
+            "No requested profile frames were discarded before Single Image Output."
+        )
+        return images_out, decoded_frames, info
 
 
 class H3ImageFrameSelector:
@@ -1098,15 +1365,30 @@ class H3ImageFrameSelector:
     CATEGORY = CATEGORY
 
     @staticmethod
-    def _metric_tensor(frames: torch.Tensor, max_side: int = 512) -> torch.Tensor:
-        x = frames[..., :3].movedim(-1, 1).float()
-        h, w = x.shape[-2:]
+    def _metric_tensor(frames: torch.Tensor, max_side: int = 512, chunk_size: int = 4) -> torch.Tensor:
+        # Keep the source packet in its native dtype and only upcast small chunks.
+        # Upcasting an entire 22-frame 8 MP fp16 decode before downsampling can
+        # otherwise create a multi-gigabyte transient allocation.
+        samples = frames[..., :3].movedim(-1, 1)
+        h, w = samples.shape[-2:]
         scale = min(1.0, max_side / max(h, w))
-        if scale < 1.0:
-            nh = max(16, int(round(h * scale)))
-            nw = max(16, int(round(w * scale)))
-            x = F.interpolate(x, size=(nh, nw), mode="bilinear", align_corners=False, antialias=True)
-        return x.clamp(0.0, 1.0)
+        if scale >= 1.0:
+            return samples.float().clamp(0.0, 1.0)
+
+        nh = max(16, int(round(h * scale)))
+        nw = max(16, int(round(w * scale)))
+        chunks = []
+        for chunk in samples.split(max(1, int(chunk_size)), dim=0):
+            chunk = chunk.float()
+            chunk = F.interpolate(
+                chunk,
+                size=(nh, nw),
+                mode="bilinear",
+                align_corners=False,
+                antialias=True,
+            )
+            chunks.append(chunk)
+        return torch.cat(chunks, dim=0).clamp(0.0, 1.0)
 
     @staticmethod
     def _minmax(values: torch.Tensor) -> torch.Tensor:
@@ -1235,17 +1517,33 @@ class H3ImageFrameSelector:
         if source_image is not None:
             similarity = self._similarity(x, source_image)
 
+        effective_strategy = strategy
+        strategy_warning = ""
         if strategy == "sharpest":
             scores = sharp_n
         elif strategy == "stable_quality":
             scores = stable_quality
-        elif strategy == "most_similar_to_source" and similarity is not None:
-            scores = similarity
-        elif strategy == "balanced_edit" and similarity is not None:
-            sw = max(0.0, min(1.0, float(similarity_weight)))
-            scores = sw * similarity + (1.0 - sw) * stable_quality
+        elif strategy == "most_similar_to_source":
+            if similarity is None:
+                scores = quality
+                effective_strategy = "best_quality"
+                strategy_warning = (
+                    " WARNING: most_similar_to_source requires source_image; fell back to best_quality."
+                )
+            else:
+                scores = similarity
+        elif strategy == "balanced_edit":
+            if similarity is None:
+                scores = stable_quality
+                effective_strategy = "stable_quality"
+                strategy_warning = (
+                    " WARNING: balanced_edit requires source_image; fell back to stable_quality."
+                )
+            else:
+                sw = max(0.0, min(1.0, float(similarity_weight)))
+                scores = sw * similarity + (1.0 - sw) * stable_quality
         else:
-            scores = stable_quality if strategy == "balanced_edit" else quality
+            scores = quality
 
         best_local = int(torch.argmax(scores).item())
         selected_index = int(candidate_indices[best_local].item())
@@ -1264,9 +1562,11 @@ class H3ImageFrameSelector:
 
         sim_text = "n/a" if similarity is None else f"{float(similarity[best_local]):.4f}"
         report = (
-            f"Selected frame {selected_index}/{n - 1} with {strategy}; score={selected_score:.4f}, "
+            f"Selected frame {selected_index}/{n - 1}; requested_strategy={strategy}; "
+            f"effective_strategy={effective_strategy}; score={selected_score:.4f}, "
             f"sharpness={float(sharp_n[best_local]):.4f}, quality={float(quality[best_local]):.4f}, "
             f"stability={float(stability[best_local]):.4f}, similarity={sim_text}; candidates={start}..{end - 1}."
+            f"{strategy_warning}"
         )
         if emit_candidate_batch:
             report += (
@@ -1279,11 +1579,12 @@ class H3ImageFrameSelector:
 
 
 class H3SamplingSettings:
-    """Combined H3 sampler, scheduler and sigma-shift selector.
+    """Combined H3 sampler, scheduler and sigma-shift selector."""
 
-    Sampler and scheduler options are populated dynamically from the installed
-    ComfyUI version, so newly added core samplers/schedulers appear automatically.
-    """
+    DESCRIPTION = (
+        "Advanced H3 sampler/scheduler controls. Denoise follows ComfyUI BasicScheduler semantics for every scheduler, "
+        "including beta_custom: values below 1 use the tail of a longer schedule and 0 returns empty sigmas."
+    )
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -1292,15 +1593,63 @@ class H3SamplingSettings:
             scheduler_options.append("beta_custom")
         return {
             "required": {
-                "model": ("MODEL",),
-                "sampler_name": (list(comfy.samplers.SAMPLER_NAMES), {"default": "res_multistep" if "res_multistep" in comfy.samplers.SAMPLER_NAMES else comfy.samplers.SAMPLER_NAMES[0]}),
-                "scheduler": (scheduler_options, {"default": "simple" if "simple" in scheduler_options else scheduler_options[0]}),
-                "steps": ("INT", {"default": 20, "min": 1, "max": 10000, "step": 1}),
-                "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "shift_video": ("FLOAT", {"default": 12.0, "min": 0.01, "max": 100.0, "step": 0.01}),
-                "shift_audio": ("FLOAT", {"default": 3.0, "min": 0.01, "max": 100.0, "step": 0.01}),
-                "beta_alpha": ("FLOAT", {"default": 0.6, "min": 0.01, "max": 50.0, "step": 0.01}),
-                "beta_beta": ("FLOAT", {"default": 0.6, "min": 0.01, "max": 50.0, "step": 0.01}),
+                "model": ("MODEL", {"tooltip": "Loaded MiniMax H3 diffusion model."}),
+                "sampler_name": (
+                    list(comfy.samplers.SAMPLER_NAMES),
+                    {
+                        "default": "res_multistep" if "res_multistep" in comfy.samplers.SAMPLER_NAMES else comfy.samplers.SAMPLER_NAMES[0],
+                        "tooltip": "ComfyUI sampler implementation. res_multistep is the H3 baseline.",
+                    },
+                ),
+                "scheduler": (
+                    scheduler_options,
+                    {
+                        "default": "simple" if "simple" in scheduler_options else scheduler_options[0],
+                        "tooltip": "Sigma schedule. beta_custom exposes alpha/beta below and now honors denoise identically to other schedulers.",
+                    },
+                ),
+                "steps": (
+                    "INT",
+                    {"default": 20, "min": 1, "max": 10000, "step": 1, "tooltip": "Number of sampling steps actually executed."},
+                ),
+                "denoise": (
+                    "FLOAT",
+                    {
+                        "default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,
+                        "tooltip": (
+                            "ComfyUI-style denoise strength. Below 1 builds a longer schedule and keeps only its final "
+                            "steps; 0 returns empty sigmas. This affects both beta_custom and standard schedulers."
+                        ),
+                    },
+                ),
+                "shift_video": (
+                    "FLOAT",
+                    {
+                        "default": 12.0, "min": 0.01, "max": 100.0, "step": 0.01,
+                        "tooltip": "Flow sigma shift for H3 video/image latent sampling.",
+                    },
+                ),
+                "shift_audio": (
+                    "FLOAT",
+                    {
+                        "default": 3.0, "min": 0.01, "max": 100.0, "step": 0.01,
+                        "tooltip": "H3 audio sigma shift metadata. Image Studio does not decode the audio VAE.",
+                    },
+                ),
+                "beta_alpha": (
+                    "FLOAT",
+                    {
+                        "default": 0.6, "min": 0.01, "max": 50.0, "step": 0.01,
+                        "tooltip": "Alpha parameter used only when scheduler is beta_custom.",
+                    },
+                ),
+                "beta_beta": (
+                    "FLOAT",
+                    {
+                        "default": 0.6, "min": 0.01, "max": 50.0, "step": 0.01,
+                        "tooltip": "Beta parameter used only when scheduler is beta_custom.",
+                    },
+                ),
             }
         }
 
@@ -1318,7 +1667,11 @@ class H3SamplingSettings:
 
         original = m.get_model_object("model_sampling")
         model_sampling = ModelSamplingAdvanced(m.model.model_config)
-        model_sampling.set_parameters(shift=float(shift_video))
+        multiplier = getattr(original, "multiplier", 1000)
+        model_sampling.set_parameters(
+            shift=float(shift_video),
+            multiplier=multiplier,
+        )
         if hasattr(original, "noise_scale"):
             model_sampling.set_noise_scale(original.noise_scale)
         m.add_object_patch("model_sampling", model_sampling)
@@ -1345,35 +1698,43 @@ class H3SamplingSettings:
         sampler = comfy.samplers.sampler_object(sampler_name)
 
         model_sampling = shifted_model.get_model_object("model_sampling")
-        steps = int(steps)
-        denoise = float(denoise)
+        steps = max(1, int(steps))
+        denoise = max(0.0, min(1.0, float(denoise)))
+
+        if denoise <= 0.0:
+            sigmas = torch.FloatTensor([])
+            beta_note = f" | beta alpha={beta_alpha:g}, beta={beta_beta:g}" if scheduler == "beta_custom" else ""
+            info = (
+                f"sampler={sampler_name} | scheduler={scheduler} | steps={steps} | denoise=0 | "
+                f"schedule_steps=0 | shift_video={shift_video:g} | shift_audio={shift_audio:g}{beta_note}"
+            )
+            return shifted_model, sampler, sigmas, info
+
+        total_steps = steps if denoise >= 1.0 else max(steps, int(steps / denoise))
 
         if scheduler == "beta_custom":
             # BetaSamplingScheduler equivalent with user-controlled alpha/beta.
             sigmas = comfy.samplers.beta_scheduler(
                 model_sampling,
-                steps,
+                total_steps,
                 alpha=float(beta_alpha),
                 beta=float(beta_beta),
             ).cpu()
         else:
-            total_steps = steps
-            if denoise < 1.0:
-                if denoise <= 0.0:
-                    sigmas = torch.FloatTensor([])
-                    info = (
-                        f"sampler={sampler_name} | scheduler={scheduler} | steps={steps} | "
-                        f"denoise=0 | shift_video={shift_video:g} | shift_audio={shift_audio:g}"
-                    )
-                    return shifted_model, sampler, sigmas, info
-                total_steps = max(steps, int(steps / denoise))
-            sigmas = comfy.samplers.calculate_sigmas(model_sampling, scheduler, total_steps).cpu()
-            sigmas = sigmas[-(steps + 1):]
+            sigmas = comfy.samplers.calculate_sigmas(
+                model_sampling,
+                scheduler,
+                total_steps,
+            ).cpu()
+
+        # BasicScheduler-style denoise semantics: build the full schedule then
+        # keep the final steps+1 sigmas used by SamplerCustomAdvanced.
+        sigmas = sigmas[-(steps + 1):]
 
         beta_note = f" | beta alpha={beta_alpha:g}, beta={beta_beta:g}" if scheduler == "beta_custom" else ""
         info = (
             f"sampler={sampler_name} | scheduler={scheduler} | steps={steps} | denoise={denoise:g} | "
-            f"shift_video={shift_video:g} | shift_audio={shift_audio:g}{beta_note}"
+            f"schedule_steps={total_steps} | shift_video={shift_video:g} | shift_audio={shift_audio:g}{beta_note}"
         )
         return shifted_model, sampler, sigmas, info
 
@@ -1381,11 +1742,15 @@ class H3SamplingSettings:
 class H3ImageSamplingPreset:
     """Small, safe image-mode sampling UI built from official H3 settings."""
 
+    DESCRIPTION = (
+        "Applies the validated H3 image sampling presets: res_multistep + simple with either 20 quality steps or 12 speed steps."
+    )
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "model": ("MODEL",),
+                "model": ("MODEL", {"tooltip": "Loaded MiniMax H3 diffusion model."}),
                 "sampling_profile": (
                     list(SAMPLING_PROFILES.keys()),
                     {
