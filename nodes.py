@@ -44,9 +44,13 @@ ASPECT_RATIOS: Dict[str, Tuple[int, int]] = {
 }
 
 RECOMMENDED_FRAME_PROFILE = "recommended | 5 frames"
+BALANCED_FRAME_PROFILE = "extended quality | 9 frames"
+HIGH_FRAME_PROFILE = "high quality | 13 frames"
 MAX_QUALITY_FRAME_PROFILE = "maximum quality | 20 frames (slow)"
 FRAME_PRESETS: Dict[str, int] = {
     RECOMMENDED_FRAME_PROFILE: 5,
+    BALANCED_FRAME_PROFILE: 9,
+    HIGH_FRAME_PROFILE: 13,
     MAX_QUALITY_FRAME_PROFILE: 20,
 }
 
@@ -61,9 +65,14 @@ RESOLUTION_PROFILES: Dict[str, Optional[float]] = {
     "custom megapixels": None,
 }
 
-SAMPLING_PROFILES: Dict[str, Tuple[str, str, Optional[int]]] = {
-    "quality | 20 steps": ("res_multistep", "simple", 20),
-    "speed | 12 steps": ("res_multistep", "simple", 12),
+# sampler, scheduler, steps, video sigma shift, audio sigma shift
+# Base presets preserve the H3 12/3 shift pair used by this pack. Turbo presets
+# are intended for compatible third-party H3 Turbo LoRAs and use audio shift 4.
+SAMPLING_PROFILES: Dict[str, Tuple[str, str, int, float, float]] = {
+    "quality | 20 steps": ("res_multistep", "simple", 20, 12.0, 3.0),
+    "speed | 12 steps": ("res_multistep", "simple", 12, 12.0, 3.0),
+    "turbo | 8 steps (LoRA)": ("res_multistep", "simple", 8, 12.0, 4.0),
+    "turbo | 4 steps (LoRA, experimental)": ("res_multistep", "simple", 4, 12.0, 4.0),
 }
 
 VIDEO_PROMPT_RE = re.compile(
@@ -172,7 +181,7 @@ def _resize_image(image: torch.Tensor, width: int, height: int, fit_mode: str) -
 
 
 def _resolve_frame_count(frame_preset: str) -> int:
-    """Resolve one of the two still-image temporal-context profiles."""
+    """Resolve one of the supported still-image temporal-context profiles."""
     if frame_preset in FRAME_PRESETS:
         return FRAME_PRESETS[frame_preset]
     raise ValueError(f"Unknown H3 image quality profile: {frame_preset}")
@@ -585,7 +594,7 @@ class H3ImagePrepare:
 
     DESCRIPTION = (
         "Advanced combined T2I/I2I/REF2VA preparation node. The VAE is optional for text-to-image but required for "
-        "image-to-image and reference editing. The full 5- or 20-frame temporal profile is preserved for final selection."
+        "image-to-image and reference editing. The full requested 5-, 9-, 13-, or 20-frame temporal profile is preserved for final selection."
     )
 
     @classmethod
@@ -1107,7 +1116,7 @@ class H3ImageDecode:
 
     DESCRIPTION = (
         "Decodes the H3 video latent, crops natural packet surplus independently for every batch item, and preserves "
-        "the complete requested 5- or 20-frame profile for Single Image Output. In 20-frame FL2VA I2I, the preferred "
+        "the complete requested 5-, 9-, 13-, or 20-frame profile for Single Image Output. In 20-frame FL2VA I2I, the preferred "
         "stable-edit index is measured independently for each batch item."
     )
 
@@ -1119,7 +1128,7 @@ class H3ImageDecode:
                     "LATENT",
                     {
                         "tooltip": (
-                            "Sampled H3 latent. Image Studio metadata specifies whether each batch item keeps a 5- or "
+                            "Sampled H3 latent. Image Studio metadata specifies whether each batch item keeps a 5-, 9-, 13-, or "
                             "20-frame temporal profile."
                         )
                     },
@@ -1228,7 +1237,7 @@ class H3ImageFrameSelector:
                     {
                         "tooltip": (
                             "Decoded H3 IMAGE batch. With the supplied Exact Frame Decode node this contains the "
-                            "complete selected 5- or 20-frame profile."
+                            "complete selected 5-, 9-, 13-, or 20-frame profile."
                         )
                     },
                 ),
@@ -1662,7 +1671,11 @@ class H3SamplingSettings:
     def _apply_h3_shift(model, shift_video: float, shift_audio: float):
         m = model.clone()
 
-        class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingDiscreteFlow, comfy.model_sampling.CONST):
+        # MiniMax H3 is a FLOW_AV model in ComfyUI. Its sampling object must
+        # retain ModelSamplingAV semantics even for image-only output because the
+        # packed latent still contains an audio stream during denoising. In
+        # particular, H3 sampling reads model_sampling.audio_scale.
+        class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingAV, comfy.model_sampling.CONST):
             pass
 
         original = m.get_model_object("model_sampling")
@@ -1670,6 +1683,7 @@ class H3SamplingSettings:
         multiplier = getattr(original, "multiplier", 1000)
         model_sampling.set_parameters(
             shift=float(shift_video),
+            audio_shift=float(shift_audio),
             multiplier=multiplier,
         )
         if hasattr(original, "noise_scale"):
@@ -1743,7 +1757,8 @@ class H3ImageSamplingPreset:
     """Small, safe image-mode sampling UI built from official H3 settings."""
 
     DESCRIPTION = (
-        "Applies the validated H3 image sampling presets: res_multistep + simple with either 20 quality steps or 12 speed steps."
+        "Applies H3 image sampling presets using res_multistep + simple: 20-step quality, 12-step speed, plus "
+        "8-step and experimental 4-step presets intended for compatible MiniMax H3 Turbo LoRAs."
     )
 
     @classmethod
@@ -1755,7 +1770,11 @@ class H3ImageSamplingPreset:
                     list(SAMPLING_PROFILES.keys()),
                     {
                         "default": "quality | 20 steps",
-                        "tooltip": "20 steps is recommended for maximum quality. Choose 12 steps when generation speed matters more.",
+                        "tooltip": (
+                            "20 steps is the base quality preset; 12 steps is the base speed preset. Turbo 8/4-step "
+                            "presets are intended for a compatible H3 Turbo LoRA loaded upstream with "
+                            "LoraLoaderModelOnly. Start with the 8-step preset; the 4-step preset is experimental."
+                        ),
                     },
                 ),
             },
@@ -1767,15 +1786,15 @@ class H3ImageSamplingPreset:
     CATEGORY = CATEGORY
 
     def build(self, model, sampling_profile: str):
-        sampler_name, scheduler, steps = SAMPLING_PROFILES[sampling_profile]
+        sampler_name, scheduler, steps, shift_video, shift_audio = SAMPLING_PROFILES[sampling_profile]
         shifted_model, sampler, sigmas, info = H3SamplingSettings().build(
             model=model,
             sampler_name=sampler_name,
             scheduler=scheduler,
             steps=steps,
             denoise=1.0,
-            shift_video=12.0,
-            shift_audio=3.0,
+            shift_video=shift_video,
+            shift_audio=shift_audio,
             beta_alpha=0.6,
             beta_beta=0.6,
         )

@@ -1,7 +1,7 @@
 [project]
 name = "minimax-h3-image-studio"
 version = "0.1.0"
-description = "Image-first ComfyUI nodes for MiniMax H3 text-to-image, image-to-image, and reference editing."
+description = "Image-first ComfyUI nodes for MiniMax H3 T2I, I2I and REF2VA editing, with Turbo LoRA presets and multi-frame still selection."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
