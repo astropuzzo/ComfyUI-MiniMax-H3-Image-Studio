@@ -236,13 +236,15 @@ Use [GitHub Issues](https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studi
 
 Image Studio is released under [The Unlicense](LICENSE). MiniMax H3, ComfyUI, adapters, models and optional custom nodes retain their own licenses and usage terms.
 
-## Project growth
+## Star History
 
-<picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=astropuzzo/ComfyUI-MiniMax-H3-Image-Studio&type=date&theme=dark&legend=top-left&sealed_token=_xn9fxJSTkwqFPGOFa0wrp0PUIkhQhi36x4qMQmdsGeoXvcSbpXUolr8R7INYPbyumCko4rLthRk4G9XheLnSfDvCh0n7tk79qsEsj8sTFNApYP8MzDzsaCZQoodhE5dxpEhjfW2yVnLhNN8ScdujALz0Ke4fbvgvSnWrdY9SOumZzQOA3S8sBVcu1uVc4bD6C55W1b-jfEkSg" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=astropuzzo/ComfyUI-MiniMax-H3-Image-Studio&type=date&legend=top-left&sealed_token=_xn9fxJSTkwqFPGOFa0wrp0PUIkhQhi36x4qMQmdsGeoXvcSbpXUolr8R7INYPbyumCko4rLthRk4G9XheLnSfDvCh0n7tk79qsEsj8sTFNApYP8MzDzsaCZQoodhE5dxpEhjfW2yVnLhNN8ScdujALz0Ke4fbvgvSnWrdY9SOumZzQOA3S8sBVcu1uVc4bD6C55W1b-jfEkSg" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=astropuzzo/ComfyUI-MiniMax-H3-Image-Studio&type=date&legend=top-left&sealed_token=_xn9fxJSTkwqFPGOFa0wrp0PUIkhQhi36x4qMQmdsGeoXvcSbpXUolr8R7INYPbyumCko4rLthRk4G9XheLnSfDvCh0n7tk79qsEsj8sTFNApYP8MzDzsaCZQoodhE5dxpEhjfW2yVnLhNN8ScdujALz0Ke4fbvgvSnWrdY9SOumZzQOA3S8sBVcu1uVc4bD6C55W1b-jfEkSg" />
-</picture>
+<a href="https://www.star-history.com/?repos=astropuzzo%2FComfyUI-MiniMax-H3-Image-Studio&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=astropuzzo/ComfyUI-MiniMax-H3-Image-Studio&type=date&theme=dark&legend=top-left&sealed_token=5hlLEU_BRdBca7lGgrEu3DchksLy-sRtrWR6heaJjBp7oPMTdc5lJj0BVXCrumsmghYRU2UoBU3NtVbGTwk0oTMm8X-kgBlaRJ9vQwoqdzZmJ5pvw0T3xA" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=astropuzzo/ComfyUI-MiniMax-H3-Image-Studio&type=date&legend=top-left&sealed_token=5hlLEU_BRdBca7lGgrEu3DchksLy-sRtrWR6heaJjBp7oPMTdc5lJj0BVXCrumsmghYRU2UoBU3NtVbGTwk0oTMm8X-kgBlaRJ9vQwoqdzZmJ5pvw0T3xA" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=astropuzzo/ComfyUI-MiniMax-H3-Image-Studio&type=date&legend=top-left&sealed_token=5hlLEU_BRdBca7lGgrEu3DchksLy-sRtrWR6heaJjBp7oPMTdc5lJj0BVXCrumsmghYRU2UoBU3NtVbGTwk0oTMm8X-kgBlaRJ9vQwoqdzZmJ5pvw0T3xA" />
+ </picture>
+</a>
 
 <p align="center">
   <a href="https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/stargazers">
