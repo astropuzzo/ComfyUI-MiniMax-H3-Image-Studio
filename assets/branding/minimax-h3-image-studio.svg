@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 400" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" role="img" aria-labelledby="title desc">
   <title id="title">MiniMax H3 Image Studio</title>
   <desc id="desc">A camera aperture surrounding the H3 monogram.</desc>
   <defs>
@@ -8,9 +8,11 @@
       <stop offset="1" stop-color="#fb7185"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="400" rx="84" fill="#0b1020"/>
-  <circle cx="256" cy="200" r="146" fill="none" stroke="url(#g)" stroke-width="20"/>
-  <path d="M256 54 195 159h122L256 54Zm126 73-122 2 61 104 61-106Zm0 146-61-105-61 105h122ZM256 346l61-105H195l61 105Zm-126-73 122-2-61-104-61 106Zm0-146 61 105 61-105H130Z" fill="url(#g)" opacity=".22"/>
-  <text x="256" y="222" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="80" font-weight="800" fill="#f8fafc">H3</text>
-  <text x="256" y="262" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="22" font-weight="600" letter-spacing="4" fill="#cbd5e1">IMAGE</text>
+  <rect width="400" height="400" rx="84" fill="#0b1020"/>
+  <g transform="translate(0 43.75) scale(.78125)">
+    <circle cx="256" cy="200" r="146" fill="none" stroke="url(#g)" stroke-width="20"/>
+    <path d="M256 54 195 159h122L256 54Zm126 73-122 2 61 104 61-106Zm0 146-61-105-61 105h122ZM256 346l61-105H195l61 105Zm-126-73 122-2-61-104-61 106Zm0-146 61 105 61-105H130Z" fill="url(#g)" opacity=".22"/>
+    <text x="256" y="222" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="80" font-weight="800" fill="#f8fafc">H3</text>
+    <text x="256" y="262" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="22" font-weight="600" letter-spacing="4" fill="#cbd5e1">IMAGE</text>
+  </g>
 </svg>

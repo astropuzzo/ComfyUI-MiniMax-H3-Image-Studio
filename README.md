@@ -7,6 +7,9 @@ Image-first [ComfyUI](https://github.com/Comfy-Org/ComfyUI) nodes and documented
 > [!WARNING]
 > This is an experimental, AI-assisted community project. MiniMax H3 image use is adapted from a native audio-video model, and upstream implementations are still changing. Keep a copy of working workflows when updating ComfyUI or third-party acceleration nodes.
 
+> [!IMPORTANT]
+> **Community GPU validation is requested for v15.** The release passed code, ComfyUI import, prompt, workflow, frontend, PNG metadata and runtime-unit checks, but the maintainer is away from the CUDA workstation for approximately one week and could not run a complete production-weight generation before publication. Please share successful tests as well as failures in [validation issue #13](https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/issues/13).
+
 ## v15 at a glance
 
 - Fixes the reported **Empty canvas** problem by shipping real ComfyUI UI workflows, not only API prompt JSON.
@@ -24,12 +27,34 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete release history.
 
 ComfyUI 0.30.0 or newer is required; the latest stable ComfyUI is strongly recommended for H3, ER-SDE/SA-Solver and experimental quantized checkpoints.
 
+### ComfyUI Manager and Registry
+
+The package is prepared for publication under the Registry id `minimax-h3-image-studio`. Once its Registry entry is visible, search for **MiniMax H3 Image Studio** in ComfyUI Manager or install it with:
+
+```bash
+comfy node install minimax-h3-image-studio
+```
+
+Registry installations expose stable semantic versions to ComfyUI Manager, allowing users to discover and select updates instead of depending on GitHub visits.
+
+### Git installation
+
 ```bash
 cd ComfyUI/custom_nodes
 git clone https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio.git
 ```
 
 Restart ComfyUI after installing or updating. Image Studio has no additional Python runtime dependencies: it uses the PyTorch and H3 support already supplied by ComfyUI.
+
+### Updating from v5–v14
+
+An already-installed old release cannot display a notification that was not built into that release. The update path depends on how it was installed:
+
+- **Git clone:** use ComfyUI Manager's update function where available, or run `git pull --ff-only` inside `ComfyUI/custom_nodes/ComfyUI-MiniMax-H3-Image-Studio`, then restart ComfyUI.
+- **ComfyUI Manager/Registry:** after the Registry publication is active, use the Manager's **Update** filter and select the latest stable version.
+- **Downloaded ZIP:** ZIP installations have no Git history or automatic updater; replace the old folder with a fresh release and restart ComfyUI.
+
+Back up custom workflows before moving across major versions. The bundled v15 workflows live in `examples/ui/` and `examples/png/`.
 
 ## Ready-to-open workflows
 

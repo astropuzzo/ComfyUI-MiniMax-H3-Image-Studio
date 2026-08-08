@@ -21,7 +21,7 @@ jobs:
        github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
@@ -53,7 +53,7 @@ jobs:
           ' CHANGELOG.md > /tmp/minimax-release-notes.md
           test -s /tmp/minimax-release-notes.md
 
-      - name: Create tag and GitHub release
+      - name: Create or synchronize tag and GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -61,11 +61,6 @@ jobs:
           VERSION: ${{ steps.metadata.outputs.version }}
         run: |
           set -euo pipefail
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists; nothing to publish."
-            exit 0
-          fi
-
           if ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -73,7 +68,13 @@ jobs:
             git push origin "$TAG"
           fi
 
-          gh release create "$TAG" \
-            --verify-tag \
-            --title "MiniMax H3 Image Studio v${VERSION}" \
-            --notes-file /tmp/minimax-release-notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --title "MiniMax H3 Image Studio v${VERSION}" \
+              --notes-file /tmp/minimax-release-notes.md
+          else
+            gh release create "$TAG" \
+              --verify-tag \
+              --title "MiniMax H3 Image Studio v${VERSION}" \
+              --notes-file /tmp/minimax-release-notes.md
+          fi

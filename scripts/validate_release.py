@@ -8,6 +8,7 @@ import json
 import struct
 import sys
 import tomllib
+import xml.etree.ElementTree as ET
 import zlib
 from pathlib import Path
 
@@ -120,6 +121,30 @@ def validate_metadata(repo: Path) -> None:
     assert comfy["PublisherId"] == "astropuzzo"
     assert comfy["requires-comfyui"] == ">=0.30.0"
     assert comfy["Icon"].endswith("/assets/branding/minimax-h3-image-studio.svg")
+    assert comfy["Banner"].endswith("/assets/branding/minimax-h3-banner.svg")
+
+
+def validate_registry_assets(repo: Path) -> None:
+    def svg_size(path: Path) -> tuple[float, float]:
+        root = ET.parse(path).getroot()
+        view_box = [float(value) for value in root.attrib["viewBox"].split()]
+        assert len(view_box) == 4 and view_box[2] > 0 and view_box[3] > 0, f"{path}: invalid viewBox"
+        width = float(root.attrib.get("width", view_box[2]))
+        height = float(root.attrib.get("height", view_box[3]))
+        assert width == view_box[2] and height == view_box[3], f"{path}: rendered and viewBox sizes differ"
+        return width, height
+
+    icon = repo / "assets" / "branding" / "minimax-h3-image-studio.svg"
+    icon_width, icon_height = svg_size(icon)
+    assert icon_width == icon_height and icon_width <= 400, f"{icon}: Registry icon must be square and at most 400px"
+
+    banner = repo / "assets" / "branding" / "minimax-h3-banner.svg"
+    banner_width, banner_height = svg_size(banner)
+    assert abs((banner_width / banner_height) - (21 / 9)) < 1e-9, f"{banner}: Registry banner must be 21:9"
+
+    workflow = (repo / ".github" / "workflows" / "publish_registry.yml").read_text(encoding="utf-8")
+    assert "Comfy-Org/publish-node-action@main" in workflow
+    assert "REGISTRY_ACCESS_TOKEN" in workflow
 
 
 def validate_api(repo: Path, slug: str) -> dict:
@@ -232,6 +257,7 @@ def validate_repo(repo: Path) -> None:
     validate_python(repo)
     validate_node_documentation(repo)
     validate_metadata(repo)
+    validate_registry_assets(repo)
     for slug in SLUGS:
         prompt = validate_api(repo, slug)
         workflow = validate_ui(repo, slug, prompt)
