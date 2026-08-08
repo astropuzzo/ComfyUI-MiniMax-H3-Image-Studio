@@ -1,0 +1,38 @@
+name: Apply v14 migration
+
+on:
+  push:
+    branches:
+      - agent/v14-av-sampling-turbo
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply nodes migration
+        run: python .github/apply_v14_nodes.py
+      - name: Validate Python and workflow JSON
+        run: |
+          python -m py_compile nodes.py __init__.py
+          python -m json.tool examples/H3_I2I_TURBO_LORA_API.json > /dev/null
+          grep -q 'ModelSamplingAV' nodes.py
+          grep -q 'audio_shift=float(shift_audio)' nodes.py
+          grep -q 'turbo | 8 steps (LoRA)' nodes.py
+          grep -q 'extended quality | 9 frames' nodes.py
+          grep -q 'high quality | 13 frames' nodes.py
+      - name: Remove migration helpers and commit
+        run: |
+          rm .github/apply_v14_nodes.py
+          rm .github/workflows/apply-v14.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add nodes.py .github/apply_v14_nodes.py .github/workflows/apply-v14.yml
+          git commit -m 'v14: integrate AV sampling and Turbo presets'
+          git push
