@@ -1,0 +1,33 @@
+name: Publish to Comfy Registry
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["pyproject.toml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: comfy-registry-publish
+  cancel-in-progress: false
+
+jobs:
+  publish-node:
+    name: Publish custom node
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY_ACCESS_TOKEN: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Registry token is not configured
+        if: ${{ env.REGISTRY_ACCESS_TOKEN == '' }}
+        run: echo "::warning::Create the Comfy publisher and add the REGISTRY_ACCESS_TOKEN repository secret, then run this workflow manually."
+
+      - name: Publish version
+        if: ${{ env.REGISTRY_ACCESS_TOKEN != '' }}
+        uses: Comfy-Org/publish-node-action@main
+        with:
+          personal_access_token: ${{ secrets.REGISTRY_ACCESS_TOKEN }}

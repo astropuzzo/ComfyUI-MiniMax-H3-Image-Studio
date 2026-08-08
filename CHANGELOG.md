@@ -4,6 +4,11 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 
 ## [15.0.0] - 2026-08-08
 
+### Community validation requested
+
+- The maintainer is away from the CUDA workstation for approximately one week, so a complete production-weight H3 generation could not be run before publication.
+- Code, import, prompt, workflow, frontend, PNG metadata and runtime-unit validation passed; community GPU results are requested in [issue #13](https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/issues/13).
+
 ### Fixed
 
 - Replaced API-only drag targets with proper ComfyUI schema-0.4 UI workflows, fixing the reported Empty canvas behavior.
