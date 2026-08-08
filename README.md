@@ -238,11 +238,13 @@ Image Studio is released under [The Unlicense](LICENSE). MiniMax H3, ComfyUI, ad
 
 ## Project growth
 
-<p align="center">
-  <a href="https://star-history.com/#astropuzzo/ComfyUI-MiniMax-H3-Image-Studio&Date">
-    <img src="https://api.star-history.com/svg?repos=astropuzzo/ComfyUI-MiniMax-H3-Image-Studio&amp;type=Date" width="760" alt="GitHub star history for MiniMax H3 Image Studio">
-  </a>
-</p>
+<a href="https://www.star-history.com/?repos=astropuzzo%2FComfyUI-MiniMax-H3-Image-Studio&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=astropuzzo/ComfyUI-MiniMax-H3-Image-Studio&type=date&theme=dark&legend=top-left&sealed_token=_xn9fxJSTkwqFPGOFa0wrp0PUIkhQhi36x4qMQmdsGeoXvcSbpXUolr8R7INYPbyumCko4rLthRk4G9XheLnSfDvCh0n7tk79qsEsj8sTFNApYP8MzDzsaCZQoodhE5dxpEhjfW2yVnLhNN8ScdujALz0Ke4fbvgvSnWrdY9SOumZzQOA3S8sBVcu1uVc4bD6C55W1b-jfEkSg" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=astropuzzo/ComfyUI-MiniMax-H3-Image-Studio&type=date&legend=top-left&sealed_token=_xn9fxJSTkwqFPGOFa0wrp0PUIkhQhi36x4qMQmdsGeoXvcSbpXUolr8R7INYPbyumCko4rLthRk4G9XheLnSfDvCh0n7tk79qsEsj8sTFNApYP8MzDzsaCZQoodhE5dxpEhjfW2yVnLhNN8ScdujALz0Ke4fbvgvSnWrdY9SOumZzQOA3S8sBVcu1uVc4bD6C55W1b-jfEkSg" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=astropuzzo/ComfyUI-MiniMax-H3-Image-Studio&type=date&legend=top-left&sealed_token=_xn9fxJSTkwqFPGOFa0wrp0PUIkhQhi36x4qMQmdsGeoXvcSbpXUolr8R7INYPbyumCko4rLthRk4G9XheLnSfDvCh0n7tk79qsEsj8sTFNApYP8MzDzsaCZQoodhE5dxpEhjfW2yVnLhNN8ScdujALz0Ke4fbvgvSnWrdY9SOumZzQOA3S8sBVcu1uVc4bD6C55W1b-jfEkSg" />
+ </picture>
+</a>
 
 <p align="center">
   <a href="https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/stargazers">
