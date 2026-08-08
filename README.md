@@ -1,199 +1,170 @@
-# ComfyUI MiniMax H3 Image Studio v14
+![MiniMax H3 Image Studio v15](assets/branding/minimax-h3-banner.svg)
+
+# MiniMax H3 Image Studio v15
+
+Image-first [ComfyUI](https://github.com/Comfy-Org/ComfyUI) nodes and documented workflows for using [MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3) as a practical text-to-image, image-to-image and REF2VA reference-edit system.
 
 > [!WARNING]
-> **Experimental, AI-coded project.** The extension and documentation are AI-assisted and guided by hands-on image testing. MiniMax H3 and ComfyUI support are evolving quickly; regressions and hardware-specific behavior are possible. Bug reports and code review are welcome.
+> This is an experimental, AI-assisted community project. MiniMax H3 image use is adapted from a native audio-video model, and upstream implementations are still changing. Keep a copy of working workflows when updating ComfyUI or third-party acceleration nodes.
 
-Image-first ComfyUI nodes for using MiniMax H3 as a practical **text-to-image, image-to-image, and reference-edit** generator, with multi-frame still selection, full candidate-batch inspection, high-resolution controls, and **Turbo LoRA presets**.
+## v15 at a glance
 
-Built around:
+- Fixes the reported **Empty canvas** problem by shipping real ComfyUI UI workflows, not only API prompt JSON.
+- Adds four 3200×1800 PNG workflow previews. Every PNG embeds both `workflow` and `prompt` metadata and can be dragged into ComfyUI.
+- Adds four editable `Workflow Note` cards to every UI workflow: quick start, models, settings rationale and optional/experimental paths.
+- Connects `Exact Frame Decode.recommended_index` directly to `Single Image Output`; the default no longer blindly skips frame 0.
+- Keeps the old decoder output order intact and appends the new recommendation as output 4, so existing links do not shift.
+- Replaces ambiguous generic Turbo choices with adapter-specific **LightX v0.1** ER-SDE and SA-Solver recipes.
+- Preserves the v14 `audio_scale` fix on current ComfyUI and includes an AV compatibility shim for older `ModelSamplingDiscreteFlow` builds.
+- Adds coordinated node colors, wider node cards, new branding, Registry metadata, automated artifact validation and GitHub CI.
 
-- [MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3)
-- [ComfyUI's H3 implementation](https://docs.comfy.org/tutorials/video/minimax/minimax-h3)
-- [Comfy-Org MiniMax H3 weights](https://huggingface.co/Comfy-Org/MiniMax-H3)
-
-## What's new in v14
-
-- Fixes the H3 `audio_scale` / `SamplerCustomAdvanced` crash caused by replacing ComfyUI's AV sampler with a plain flow sampler.
-- The fix now lives **directly in `nodes.py`**: H3 keeps `ModelSamplingAV`, `audio_shift`, `multiplier`, and `noise_scale` correctly.
-- Adds **Turbo LoRA sampling presets**:
-  - `turbo | 8 steps (LoRA)` — recommended starting point for compatible Turbo adapters.
-  - `turbo | 4 steps (LoRA, experimental)` — aggressive distilled target; quality/compatibility can vary.
-- Adds intermediate temporal profiles:
-  - `recommended | 5 frames`
-  - `extended quality | 9 frames`
-  - `high quality | 13 frames`
-  - `maximum quality | 20 frames (slow)`
-- Adds a Turbo LoRA API workflow example using ComfyUI's standard `LoraLoaderModelOnly`.
-- Documents optional SageAttention acceleration.
+See [CHANGELOG.md](CHANGELOG.md) for the complete release history.
 
 ## Installation
 
-**Requires ComfyUI 0.30.0 or newer.**
+ComfyUI 0.30.0 or newer is required; the latest stable ComfyUI is strongly recommended for H3, ER-SDE/SA-Solver and experimental quantized checkpoints.
 
 ```bash
 cd ComfyUI/custom_nodes
 git clone https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio.git
 ```
 
-Restart ComfyUI after installing or updating the node pack.
+Restart ComfyUI after installing or updating. Image Studio has no additional Python runtime dependencies: it uses the PyTorch and H3 support already supplied by ComfyUI.
 
-## Image nodes
+## Ready-to-open workflows
 
-- `MiniMax H3 Image • Text to Image` — FL2VA text-to-image preparation.
-- `MiniMax H3 Image • Image to Image` — FL2VA source-frame anchor editing.
-- `MiniMax H3 Image • Reference Edit` — REF2VA with up to nine ordered references.
-- `MiniMax H3 Image • Resolution Preset` — common aspect/size profiles.
-- `MiniMax H3 Image • Sampling Preset` — base and Turbo-oriented presets.
-- `MiniMax H3 Image • Exact Frame Decode` — preserves the requested temporal profile.
-- `MiniMax H3 Image • Single Image Output` — scores/selects one still or exposes the full decoded batch.
-- `MiniMax H3 Image • Advanced Resolution` — manual canvas/grid controls.
-- `MiniMax H3 Image • Advanced Sampling` — manual sampler, scheduler, denoise and H3 sigma shifts.
-- `MiniMax H3 Image • Advanced Combined Prepare` — combined T2I/I2I/REF2VA preparation.
+Use a UI JSON or drag its PNG directly onto the ComfyUI canvas. API JSON files remain available for programmatic clients and are intentionally stored in a separate directory.
 
-All nodes include `DESCRIPTION` metadata and tooltips for non-obvious controls.
+| Workflow | UI workflow | PNG with metadata | API prompt | Checkpoint family |
+|---|---|---|---|---|
+| Text to Image | [JSON](examples/ui/H3_T2I.json) | [PNG](examples/png/H3_T2I.png) | [API](examples/api/H3_T2I_API.json) | FL2VA |
+| Image to Image | [JSON](examples/ui/H3_I2I.json) | [PNG](examples/png/H3_I2I.png) | [API](examples/api/H3_I2I_API.json) | FL2VA |
+| Reference Edit | [JSON](examples/ui/H3_REFERENCE_EDIT.json) | [PNG](examples/png/H3_REFERENCE_EDIT.png) | [API](examples/api/H3_REFERENCE_EDIT_API.json) | REF2VA |
+| I2I · LightX v0.1 | [JSON](examples/ui/H3_I2I_LIGHTX_TURBO.json) | [PNG](examples/png/H3_I2I_LIGHTX_TURBO.png) | [API](examples/api/H3_I2I_LIGHTX_TURBO_API.json) | FL2VA + LightX LoRA |
 
-## Important: H3 is internally audio-video even for image output
+![LightX v0.1 workflow preview](examples/png/H3_I2I_LIGHTX_TURBO.png)
 
-MiniMax H3 uses a packed audio-video latent internally. Image Studio only decodes the **video/image** stream, but ComfyUI still needs H3's AV sampling contract during denoising.
+The PNGs are previews, portable workflows and recovery artifacts at the same time. Their metadata is checked in CI against the corresponding UI and API JSON, preventing silent drift between formats.
 
-That means the sampling object must retain `ModelSamplingAV` and its `audio_scale` behavior. v14 does this directly in `nodes.py` while preserving:
+## Nodes
 
-- video sigma shift;
-- audio sigma shift;
-- the model sampling `multiplier`;
-- `noise_scale`.
+| Node | Purpose |
+|---|---|
+| `Text to Image` | Builds FL2VA conditioning and the packed H3 latent for still generation. |
+| `Image to Image` | Uses an FL2VA first-frame source anchor for instructed editing. |
+| `Reference Edit` | Builds REF2VA conditioning from one source plus up to eight ordered donor references. |
+| `Resolution Preset` | Selects aspect ratio and 0.4–8 MP presets on H3's 32-pixel grid. |
+| `Sampling Preset` | Applies explicit base or LightX v0.1 recipes. |
+| `Exact Frame Decode` | Preserves the requested 5/9/13/20-frame context and reports a mode-aware still index. |
+| `Single Image Output` | Uses that recommendation by default, or ranks frames with optional metrics. |
+| `Advanced Resolution` | Exposes manual canvas, megapixel and native-area controls. |
+| `Advanced Sampling` | Exposes sampler, scheduler, denoise, beta schedule and AV sigma shifts. |
+| `Advanced Combined Prepare` | Combines T2I, I2I and REF2VA preparation in one advanced node. |
+| `Workflow Note` | Non-executing editable documentation card used by the bundled UI workflows. |
 
-The audio VAE is **not** required for Image Studio output and no audio is saved.
+All generation nodes include descriptions and control-level tooltips. Image Studio nodes are color-coded by role: preparation, sampling, output and documentation.
+
+## Models and folders
+
+Follow the [official ComfyUI MiniMax H3 guide](https://docs.comfy.org/tutorials/video/minimax/minimax-h3) and obtain weights from [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3) or another trusted publisher.
+
+| Component | Example filename | Folder |
+|---|---|---|
+| FL2VA diffusion model | `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | `ComfyUI/models/diffusion_models/` |
+| REF2VA diffusion model | `minimax_h3_ref2va_pruned_int8_convrot.safetensors` | `ComfyUI/models/diffusion_models/` |
+| Qwen text encoder | `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `ComfyUI/models/text_encoders/` |
+| H3 video VAE | `minimax_h3_video_vae_fp16.safetensors` | `ComfyUI/models/vae/` |
+| LightX v0.1 LoRA | `minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors` | `ComfyUI/models/loras/` |
+
+The audio VAE is not needed: Image Studio retains H3's internal AV sampling contract but decodes and saves only the video/image stream.
+
+Filename variants change over time. If your trusted download uses a different name, select it in the relevant loader instead of renaming it solely to match an example.
 
 ## Frame profiles and still selection
 
-H3 denoises the entire temporal packet jointly. The frame setting is therefore temporal context for generation, not a post-generation frame counter.
+H3 jointly denoises a temporal packet even when the desired result is one image. The frame profile is therefore generation context—not the number of final files that must be saved.
 
-| Profile | Requested frames | Notes |
+| Profile | Frames kept | Use |
 |---|---:|---|
-| `recommended | 5 frames` | 5 | Default, best tested speed/quality balance |
-| `extended quality | 9 frames` | 9 | Intermediate temporal context |
-| `high quality | 13 frames` | 13 | Higher temporal context |
-| `maximum quality | 20 frames (slow)` | 20 | Maximum exposed profile; significantly more compute |
+| `recommended | 5 frames` | 5 | Default and best-tested image balance. |
+| `extended quality | 9 frames` | 9 | Intermediate temporal context. |
+| `high quality | 13 frames` | 13 | Larger context at higher memory/time cost. |
+| `maximum quality | 20 frames (slow)` | 20 | Maximum exposed image profile; substantially slower. |
 
-The 9- and 13-frame options correspond to exact intermediate decode lengths produced by H3's temporal token pattern, so they avoid decoding a larger packet only to discard most of it. ComfyUI's official video node exposes the standard `17k+5` duration grid instead, so these intermediate image-oriented profiles should be treated as additional Image Studio tuning options rather than official MiniMax presets. The existing 5- and 20-frame profile names remain unchanged for saved workflows.
+`Exact Frame Decode` removes only natural VAE packet surplus and emits the complete requested profile. It also returns `recommended_index`:
 
-### `Single Image Output`
+- T2I, REF2VA and standard short I2I start conservatively at frame 0.
+- Twenty-frame FL2VA I2I may use the first measured stable-edit frame.
+- The recommendation is calculated per decoded batch item; the scalar output describes the first item, which is the normal workflow case.
 
-- `emit_candidate_batch = false` — `selected_image` contains only the selected still.
-- `emit_candidate_batch = true` — `selected_image` contains the **complete decoded frame profile**.
-- `candidate_batch_debug` contains the ranked subset controlled by `top_k`.
-- `top_k` does **not** limit the complete batch emitted through `selected_image`.
+`Single Image Output` defaults to `decode_recommended`. It also offers `first`, fixed indices, sharpness/quality metrics, source similarity and balanced scoring. Metric selection can be useful for inspection, but it cannot repair weak edit conditioning: a sharp frame can still be the wrong edit.
 
-Source-dependent strategies report their effective fallback if `source_image` is missing.
+`emit_candidate_batch = true` sends the complete decoded profile through `selected_image`; `top_k` limits only the diagnostic candidate output. This intentionally uses more RAM/VRAM.
 
-## Sampling presets
+## Base and LightX sampling recipes
 
-| Preset | Sampler | Scheduler | Steps | Video shift | Audio shift | Intended use |
-|---|---|---|---:|---:|---:|---|
-| `quality | 20 steps` | `res_multistep` | `simple` | 20 | 12 | 3 | Base H3 quality |
-| `speed | 12 steps` | `res_multistep` | `simple` | 12 | 12 | 3 | Faster base H3 |
-| `turbo | 8 steps (LoRA)` | `res_multistep` | `simple` | 8 | 12 | 4 | Recommended starting point with compatible Turbo LoRA |
-| `turbo | 4 steps (LoRA, experimental)` | `res_multistep` | `simple` | 4 | 12 | 4 | Aggressive Turbo target; experimental in this pack |
+| Profile | Sampler | Scheduler | Steps | H3 shifts | Dependency |
+|---|---|---|---:|---:|---|
+| `base quality | RES 20 steps` | `res_multistep` | `simple` | 20 | 12/3 | Base H3 |
+| `base speed | RES 12 steps` | `res_multistep` | `simple` | 12 | 12/3 | Base H3 |
+| `LightX v0.1 | ER-SDE 4 steps` | `er_sde` | `simple` | 4 | 12/3 | Matching LightX v0.1 LoRA |
+| `LightX v0.1 | SA-Solver 4 steps` | `sa_solver` | `simple` | 4 | 12/3 | Matching LightX v0.1 LoRA |
 
-The Turbo presets do not automatically load a LoRA. Load the compatible Turbo adapter **upstream** using ComfyUI's standard `LoraLoaderModelOnly`, then feed the patched model into `MiniMax H3 Image • Sampling Preset`.
+The LightX workflow follows the current [Kijai MiniMax-H3 Comfy model card](https://huggingface.co/Kijai/MiniMax-H3_comfy): the Comfy-format v0.1 LoRA, strength `0.75`, four steps and either ER-SDE or SA-Solver with the simple scheduler.
 
-## Turbo LoRA support
+The Sampling Preset loads no adapter by itself. The matching LoRA must be connected upstream through `LoraLoaderModelOnly`. Old v14 profile strings remain at the bottom of the combo for saved-workflow compatibility, but the generic Turbo labels are deprecated because they do not identify a training recipe.
 
-Turbo adapters are third-party and can target different H3 checkpoint variants or training recipes. Image Studio therefore does not auto-detect, auto-download, or auto-load a particular adapter. The included presets use `res_multistep`, video shift `12`, audio shift `4`, and either 8 or 4 sampling steps. **Start with the 8-step preset** and follow the adapter author's recommended strength/settings; the 4-step preset is deliberately marked experimental.
+## Larry Turbo is a separate implementation
 
-Place compatible LoRA files in:
+[Larryvrh/ComfyUI-MiniMax-H3-Turbo](https://github.com/Larryvrh/ComfyUI-MiniMax-H3-Turbo) is not interchangeable with LightX. Its original/pruned adapters can require its own `MiniMaxH3TurboLoRA` loader and `MiniMaxH3TurboSampler` because time-conditioning and pruning details are part of that implementation.
+
+At the time of this release, its documentation recommends the v4 step-600 checkpoint for most work, usually 4–8 steps and strength `1.0`, with 6–8 steps favored when quality matters. Use that project's current workflow and settings rather than selecting a LightX preset in Image Studio.
+
+## What is useful from Kijai's current work
+
+[ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes) now contains several H3-specific or H3-relevant optimizations that can be placed upstream of Image Studio without becoming hard dependencies:
+
+- MiniMax H3 memory-efficient SageAttention patch;
+- low-VRAM attention through head grouping;
+- chunked MiniMax feed-forward execution;
+- recent SageAttention padding/device fixes for newer GPU architectures;
+- H3 Tiny VAE model-preview override.
+
+These patches are optional because their value depends on GPU architecture, CUDA/PyTorch/SageAttention build, resolution and frame count. Keep the standard workflows working first, then add one optimization at a time and compare output and peak memory.
+
+Kijai's [MiniMax-H3 TAE](https://huggingface.co/Kijai/MiniMax-H3-TAE) (`taeh3.safetensors` in `models/vae_approx`) is for lightweight previews, not the final H3 decode. The [experimental H3 repository](https://huggingface.co/Kijai/MiniMax-H3-experimental) also includes w4a8 diffusion models and an int8 conv-rotation VAE. They are promising memory options, but are deliberately documented as experimental rather than substituted into the standard release workflows.
+
+Two r/StableDiffusion threads also informed the conservative defaults: the original [experimental image-node discussion](https://www.reddit.com/r/StableDiffusion/comments/1veh31j/experimental_minimax_h3_image_nodes_for_comfyui/) repeatedly found short packets and the first frame useful, while a later [4090 attention comparison](https://www.reddit.com/r/StableDiffusion/comments/1vg9b7l/minimax_h3_testing_with_4090_with_different_nodes/) reported promising H3-specific memory-efficient SageAttention results. These are valuable community observations, not universal benchmarks; v15 exposes the choices without forcing them.
+
+## Reference-edit guidance
+
+REF2VA regenerates from ordered visual references; it is not a pixel-locked compositing tool. A reliable two-image instruction makes ownership explicit:
 
 ```text
-ComfyUI/models/loras/
+Keep the person, face, body, pose, camera angle, framing and background from <Picture 1>.
+Replace only [named feature] using <Picture 2>. Preserve every other element from <Picture 1>.
+Return one sharp finished photograph.
 ```
 
-Then connect:
+`source_fidelity` strengthens preservation language in the prompt. It is not a denoise slider and cannot guarantee identity or geometry by itself. Adding references without assigning each one a specific role can increase ambiguity.
 
-```text
-UNETLoader
-   ↓
-LoraLoaderModelOnly
-   ↓
-MiniMax H3 Image • Sampling Preset
-   ↓
-BasicGuider / SamplerCustomAdvanced
-```
+## AV sampling compatibility
 
-The included example workflow starts at LoRA strength `1.0`. Treat that as a neutral starting point rather than a universal recommendation, and follow the adapter model card when it specifies a different range.
+MiniMax H3 keeps packed audio and video latents during denoising. Image output still requires an `audio_scale`-aware sampling object.
 
-The Turbo adapter is not bundled, downloaded, or maintained by Image Studio.
+On current ComfyUI, Image Studio subclasses native `ModelSamplingAV` and preserves video shift, audio shift, multiplier and noise scale. On older compatible cores where that class is absent, v15 supplies the same `audio_scale = video_shift / audio_shift` contract on top of `ModelSamplingDiscreteFlow`. `sampling_info` reports which backend was used.
 
-## Optional SageAttention acceleration
+Update ComfyUI first if H3 itself, ER-SDE/SA-Solver or a new quantized checkpoint is unavailable; the shim is compatibility protection, not a replacement for upstream model support.
 
-SageAttention is optional. ComfyUI has SageAttention support when a compatible package/build is installed, and H3 Turbo community workflows may also use it as an optional accelerator.
+## Resolution and memory
 
-Image Studio does **not** install or force SageAttention because compatibility and the fastest backend depend on GPU generation, CUDA/PyTorch build and operating system. If you already use a compatible SageAttention setup, it can be placed upstream as a model patch without changing Image Studio's sampling presets.
+Resolution uses ComfyUI's convention of `1 MP = 1024² pixels` and rounds to H3's 32-pixel grid. `limit_to_native_area` provides a conservative cap around the model's native training area.
 
-For some systems, workflow-level SageAttention patches may be preferable to a global launch flag. Test on your own hardware and compare against the default ComfyUI attention backend.
+Direct 2/4/8 MP generation is exposed for experimentation, but H3-Base is not the unreleased H3-Regenerate-2K pipeline. More canvas pixels can sharply increase attention, decode, RAM and pagefile cost without proportional learned detail.
 
-## Resolution
+Historical 24 GB RTX 4090 measurements from the base workflow are retained only as rough scaling context:
 
-The preset selector uses ComfyUI's megapixel convention (`1 MP = 1024² pixels`) and H3's 32-pixel grid. It includes low-resolution previews, native-area profiles, 2/4/8 MP profiles and a custom 0.1–64 MP range.
-
-Selecting `source image` without a connected image raises an actionable error rather than silently creating a square canvas.
-
-Direct high-resolution generation is allowed, but H3-Base is not the unreleased H3-Regenerate-2K pipeline. Higher resolution can dramatically increase VRAM/RAM and attention cost without proportional learned detail.
-
-## Advanced Sampling
-
-Advanced Sampling supports:
-
-- ComfyUI sampler selection;
-- standard schedulers plus `beta_custom`;
-- ComfyUI-style `denoise` semantics for every scheduler;
-- video/audio sigma shifts;
-- custom beta alpha/beta.
-
-`denoise = 0` returns an empty sigma schedule. Values below 1 build a longer schedule and keep its final `steps + 1` sigmas, matching ComfyUI's BasicScheduler-style behavior.
-
-## Optimize for still / Source Fidelity
-
-`optimize_for_still` modifies only the prompt sent to H3. It does not change frames, resolution, steps, sampler, scheduler or model weights.
-
-`source_fidelity` controls preservation language for identity, pose, composition, perspective and geometry. **It is not a denoise slider.**
-
-## Example workflows
-
-The `examples/` directory contains API-format workflows.
-
-- `H3_T2I_API.json` — base T2I.
-- `H3_I2I_API.json` — base FL2VA I2I.
-- `H3_REFERENCE_EDIT_API.json` — base REF2VA reference edit.
-- `H3_I2I_TURBO_LORA_API.json` — Turbo LoRA example with `LoraLoaderModelOnly` and the 8-step Turbo preset.
-
-The Turbo example uses a model-only LoRA because the H3 Turbo adapter targets the diffusion model, not the Qwen text encoder.
-
-## Models
-
-Follow the [official ComfyUI MiniMax H3 guide](https://docs.comfy.org/tutorials/video/minimax/minimax-h3) and download the required H3 files from [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3).
-
-Standard model locations:
-
-- diffusion checkpoints → `ComfyUI/models/diffusion_models/`
-- Qwen text encoder → `ComfyUI/models/text_encoders/`
-- video VAE → `ComfyUI/models/vae/`
-- Turbo LoRA adapters → `ComfyUI/models/loras/`
-
-Example 24 GB VRAM files used by the base workflows:
-
-- FL2VA: `minimax_h3_fl2va_pruned_int8_convrot.safetensors`
-- REF2VA: `minimax_h3_ref2va_pruned_int8_convrot.safetensors`
-- text encoder: `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors`
-- video VAE: `minimax_h3_video_vae_fp16.safetensors`
-
-The audio VAE is not needed for Image Studio output.
-
-## Performance notes
-
-Historical local measurements used a 24 GB RTX 4090 setup with SageAttention and the base H3 checkpoints. They predate the Turbo LoRA presets and should not be used as Turbo benchmarks.
-
-| Resolution | Requested frames | Natural packet | 20-step time |
+| Resolution | Frames requested | Natural packet | 20-step time |
 |---:|---:|---:|---:|
 | 1.99 MP | 5 | 5 | 27.8 s |
 | 1.99 MP | 20 | 22 | 50.1 s |
@@ -202,33 +173,40 @@ Historical local measurements used a 24 GB RTX 4090 setup with SageAttention and
 | 8.02 MP | 5 | 5 | 84.0 s |
 | 8.02 MP | 20 | 22 | 401.8 s |
 
-Actual performance depends heavily on resolution, frame profile, attention backend, checkpoint format, LoRA strength, GPU, VRAM and system memory.
+These are not LightX benchmarks. Actual performance varies with model format, GPU, attention backend, frame profile, adapter and system memory.
 
-## Memory behavior
+## Validation performed for v15
 
-High-resolution multi-frame decode can consume tens of gigabytes of combined VRAM, RAM and Windows commit/pagefile space. Metric scoring downsamples candidates in small fp32 chunks instead of first upcasting the complete high-resolution packet.
+- Clean import and node-definition check in ComfyUI 0.31.0 on CPU.
+- Real current-frontend conversion of all four API workflows into schema-0.4 UI workflows.
+- Real frontend rendering of all four PNG previews.
+- Metadata round-trip checks proving each PNG contains its matching workflow and prompt.
+- Runtime tests for decoder output compatibility, recommendation wiring, LightX recipes and the pre-`ModelSamplingAV` shim.
+- Dependency-free GitHub CI for Python syntax and every API/UI/PNG artifact relationship.
 
-Enabling `emit_candidate_batch` intentionally retains the complete decoded batch and therefore uses more memory.
+Full image generation was not run in the CPU-only release environment because the production H3/Qwen weights and CUDA GPU are required. Please include hardware and exact model details in generation bug reports.
 
-## Feedback and contributions
+## Troubleshooting and bug reports
 
-Please use [GitHub Issues](https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/issues). Include:
+If a workflow opens empty, verify that you used a file from `examples/ui/` or one of the PNGs—not an API file from `examples/api/`.
 
-- ComfyUI version / commit;
-- GPU and VRAM;
-- system RAM;
-- checkpoint and LoRA filenames;
-- LoRA strength;
-- mode (T2I/I2I/REF2VA);
+For generation issues, attach:
+
+- ComfyUI version or commit;
+- Image Studio version;
+- GPU, VRAM, system RAM and operating system;
+- checkpoint, text encoder, VAE and adapter filenames;
+- adapter strength;
+- T2I, I2I or REF2VA mode;
 - resolution and frame profile;
-- sampling preset or sampler/scheduler/steps/shifts;
-- workflow JSON;
-- full console traceback.
+- sampling profile or explicit sampler/scheduler/steps/shifts;
+- workflow JSON or metadata PNG;
+- complete console traceback.
 
-## Registry metadata
+Use [GitHub Issues](https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/issues). Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-`pyproject.toml` contains ComfyUI Registry metadata and declares `requires-comfyui = ">=0.30.0"`.
+## Registry and license
 
-## License
+`pyproject.toml` declares semantic version `15.0.0`, publisher `astropuzzo`, the packaged icon and `requires-comfyui = ">=0.30.0"`. Publishing still requires the matching publisher identity and API key in the [Comfy Registry](https://registry.comfy.org/).
 
-Image Studio is released under [The Unlicense](LICENSE). MiniMax H3, ComfyUI, Turbo LoRAs and other third-party components retain their own licences and attribution requirements.
+Image Studio is released under [The Unlicense](LICENSE). MiniMax H3, ComfyUI, adapters, models and optional custom nodes retain their own licenses and usage terms.

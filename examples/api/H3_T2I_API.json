@@ -23,30 +23,18 @@
   "4": {
     "class_type": "H3ImageResolutionPreset",
     "inputs": {
-      "aspect_ratio": "source image",
-      "resolution_profile": "native detail | 0.98 MP",
-      "source_image": [
-        "0",
-        0
-      ]
+      "aspect_ratio": "16:9 landscape",
+      "resolution_profile": "native detail | 0.98 MP"
     }
   },
   "5": {
-    "class_type": "H3ImageToImagePrepare",
+    "class_type": "H3TextToImagePrepare",
     "inputs": {
       "clip": [
         "2",
         0
       ],
-      "vae": [
-        "3",
-        0
-      ],
-      "source_image": [
-        "0",
-        0
-      ],
-      "edit_instruction": "Transform the lighting into dramatic soft Rembrandt lighting while preserving the person, pose, clothing, composition, and background geometry. The final result is a sharp finished photograph.",
+      "prompt": "A finished cinematic editorial portrait of an adult woman, precise facial detail and natural skin texture, controlled Rembrandt studio lighting, sharp eyes, clean dark background, shallow depth of field, premium fashion photography.",
       "width": [
         "4",
         0
@@ -56,8 +44,6 @@
         1
       ],
       "quality_profile": "recommended | 5 frames",
-      "source_fidelity": 0.75,
-      "source_fit": "crop_center",
       "optimize_for_still": true
     }
   },
@@ -87,7 +73,7 @@
         "1",
         0
       ],
-      "sampling_profile": "quality | 20 steps"
+      "sampling_profile": "base speed | RES 12 steps"
     }
   },
   "10": {
@@ -135,16 +121,16 @@
         "11",
         0
       ],
-      "strategy": "balanced_edit",
-      "manual_index": 1,
-      "skip_first_frames": 1,
-      "candidate_start": 0.2,
-      "candidate_end": 0.9,
-      "similarity_weight": 0.35,
+      "strategy": "decode_recommended",
+      "manual_index": 0,
+      "skip_first_frames": 0,
+      "candidate_start": 0.0,
+      "candidate_end": 1.0,
+      "similarity_weight": 0.6,
       "top_k": 4,
-      "source_image": [
-        "5",
-        2
+      "recommended_index": [
+        "11",
+        3
       ]
     }
   },
@@ -156,12 +142,6 @@
         0
       ],
       "filename_prefix": "MiniMax_H3_Image"
-    }
-  },
-  "0": {
-    "class_type": "LoadImage",
-    "inputs": {
-      "image": "input.png"
     }
   }
 }

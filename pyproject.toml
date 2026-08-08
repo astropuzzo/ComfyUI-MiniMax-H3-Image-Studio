@@ -1,7 +1,7 @@
 [project]
 name = "minimax-h3-image-studio"
-version = "0.1.0"
-description = "Image-first ComfyUI nodes for MiniMax H3 T2I, I2I and REF2VA editing, with Turbo LoRA presets and multi-frame still selection."
+version = "15.0.0"
+description = "Image-first ComfyUI nodes and documented workflows for MiniMax H3 T2I, I2I, REF2VA editing and LightX acceleration."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
@@ -15,6 +15,7 @@ Repository = "https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio"
 "Bug Tracker" = "https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/issues"
 
 [tool.comfy]
-PublisherId = "FILL_ME_IN"
+PublisherId = "astropuzzo"
 DisplayName = "MiniMax H3 Image Studio"
+Icon = "https://raw.githubusercontent.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/main/assets/branding/minimax-h3-image-studio.svg"
 requires-comfyui = ">=0.30.0"

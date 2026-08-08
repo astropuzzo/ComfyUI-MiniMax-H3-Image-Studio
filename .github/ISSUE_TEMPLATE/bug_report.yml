@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        This is an experimental, AI-coded project. Detailed reports and technical corrections are welcome. Do not post private prompts, images, tokens, or personal information.
+        This is an experimental, AI-assisted project. Detailed reports and technical corrections are welcome. Do not post private prompts, images, tokens, or personal information.
   - type: textarea
     id: problem
     attributes:
@@ -19,15 +19,15 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Include OS, ComfyUI, Python, PyTorch, GPU, VRAM, and system RAM.
-      placeholder: Windows 11; ComfyUI ...; RTX ...; VRAM ...; RAM ...
+      description: Include Image Studio release, OS, ComfyUI, Python, PyTorch, GPU, VRAM, and system RAM.
+      placeholder: Image Studio v15.0.0; Windows 11; ComfyUI ...; RTX ...; VRAM ...; RAM ...
     validations:
       required: true
   - type: textarea
     id: models
     attributes:
       label: Model files
-      description: Exact diffusion model, text encoder, and VAE filenames.
+      description: Exact diffusion model, text encoder, VAE and adapter filenames plus adapter strength.
     validations:
       required: true
   - type: textarea
@@ -41,7 +41,7 @@ body:
     id: reproduction
     attributes:
       label: Reproduction steps and workflow
-      description: Explain the steps and attach a minimal workflow JSON if possible.
+      description: Explain the steps and attach a minimal UI workflow JSON or metadata PNG if possible.
     validations:
       required: true
   - type: textarea

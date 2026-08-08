@@ -1,0 +1,7 @@
+# Development-only files; runtime nodes, web assets, docs and examples remain packaged.
+.github/
+tests/
+scripts/build_frontend_artifacts.mjs
+scripts/embed_workflow_png.py
+scripts/validate_release.py
+assets/image-edit-examples/
