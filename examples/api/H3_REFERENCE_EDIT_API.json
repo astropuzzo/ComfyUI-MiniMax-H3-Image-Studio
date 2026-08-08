@@ -92,7 +92,7 @@
         "1",
         0
       ],
-      "sampling_profile": "quality | 20 steps"
+      "sampling_profile": "base quality | RES 20 steps"
     }
   },
   "10": {
@@ -140,16 +140,20 @@
         "11",
         0
       ],
-      "strategy": "balanced_edit",
-      "manual_index": 1,
-      "skip_first_frames": 1,
-      "candidate_start": 0.2,
-      "candidate_end": 0.9,
+      "strategy": "decode_recommended",
+      "manual_index": 0,
+      "skip_first_frames": 0,
+      "candidate_start": 0.0,
+      "candidate_end": 1.0,
       "similarity_weight": 0.35,
       "top_k": 4,
       "source_image": [
         "5",
         2
+      ],
+      "recommended_index": [
+        "11",
+        3
       ]
     }
   },

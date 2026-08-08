@@ -66,11 +66,22 @@ RESOLUTION_PROFILES: Dict[str, Optional[float]] = {
 }
 
 # sampler, scheduler, steps, video sigma shift, audio sigma shift
-# Base presets preserve the H3 12/3 shift pair used by this pack. Turbo presets
-# are intended for compatible third-party H3 Turbo LoRAs and use audio shift 4.
+# Distilled adapters are not interchangeable: their authors publish different
+# sampler recipes. Keep each recipe explicit instead of offering a generic
+# "Turbo" switch that can silently apply the wrong schedule.
 SAMPLING_PROFILES: Dict[str, Tuple[str, str, int, float, float]] = {
-    "quality | 20 steps": ("res_multistep", "simple", 20, 12.0, 3.0),
-    "speed | 12 steps": ("res_multistep", "simple", 12, 12.0, 3.0),
+    "base quality | RES 20 steps": ("res_multistep", "simple", 20, 12.0, 3.0),
+    "base speed | RES 12 steps": ("res_multistep", "simple", 12, 12.0, 3.0),
+    "LightX v0.1 | ER-SDE 4 steps": ("er_sde", "simple", 4, 12.0, 3.0),
+    "LightX v0.1 | SA-Solver 4 steps": ("sa_solver", "simple", 4, 12.0, 3.0),
+}
+
+# Exact v14 strings and settings remain at the bottom of the combo so older
+# workflows load without silently changing their schedule. The generic Turbo
+# labels are deprecated because adapter compatibility cannot be guaranteed.
+LEGACY_SAMPLING_PROFILES: Dict[str, Tuple[str, str, int, float, float]] = {
+    "quality | 20 steps": SAMPLING_PROFILES["base quality | RES 20 steps"],
+    "speed | 12 steps": SAMPLING_PROFILES["base speed | RES 12 steps"],
     "turbo | 8 steps (LoRA)": ("res_multistep", "simple", 8, 12.0, 4.0),
     "turbo | 4 steps (LoRA, experimental)": ("res_multistep", "simple", 4, 12.0, 4.0),
 }
@@ -448,6 +459,11 @@ class H3ImageResolution:
 
     RETURN_TYPES = ("INT", "INT", "STRING")
     RETURN_NAMES = ("width", "height", "resolution_info")
+    OUTPUT_TOOLTIPS = (
+        "Calculated canvas width in pixels, rounded to the selected H3-compatible multiple.",
+        "Calculated canvas height in pixels, rounded to the selected H3-compatible multiple.",
+        "Human-readable size, aspect-ratio source, pixel-area and native-cap summary.",
+    )
     FUNCTION = "calculate"
     CATEGORY = CATEGORY
 
@@ -547,6 +563,11 @@ class H3ImageResolutionPreset:
 
     RETURN_TYPES = ("INT", "INT", "STRING")
     RETURN_NAMES = ("width", "height", "resolution_info")
+    OUTPUT_TOOLTIPS = (
+        "Preset-derived canvas width in pixels, rounded to H3's 32-pixel grid.",
+        "Preset-derived canvas height in pixels, rounded to H3's 32-pixel grid.",
+        "Human-readable profile, actual megapixels and native-area warning summary.",
+    )
     FUNCTION = "calculate"
     CATEGORY = CATEGORY
 
@@ -637,7 +658,7 @@ class H3ImagePrepare:
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
                         "tooltip": (
-                            "H3 jointly denoises the entire temporal packet. The complete selected 5- or 20-frame "
+                            "H3 jointly denoises the entire temporal packet. The complete selected 5-, 9-, 13-, or 20-frame "
                             "profile is decoded for Single Image Output; that node normally emits one selected still "
                             "or the full batch when emit_candidate_batch is enabled."
                         ),
@@ -709,6 +730,14 @@ class H3ImagePrepare:
 
     RETURN_TYPES = ("CONDITIONING", "LATENT", "IMAGE", "INT", "STRING", "STRING")
     RETURN_NAMES = ("positive", "h3_latent", "fitted_source", "requested_frames", "optimized_prompt", "run_info")
+    OUTPUT_TOOLTIPS = (
+        "Positive H3 FL2VA or REF2VA conditioning for the sampler's positive input.",
+        "Packed H3 audio/video latent containing the requested temporal image packet.",
+        "Source image fitted to the generation canvas; useful for preview and comparison in edit modes.",
+        "Number of image frames that Exact Frame Decode should preserve and decode.",
+        "Final prompt after optional still-image and source-preservation optimization.",
+        "Mode, temporal packet, canvas, checkpoint expectations and recommended selection strategy.",
+    )
     FUNCTION = "prepare"
     CATEGORY = CATEGORY
 
@@ -860,10 +889,36 @@ class H3TextToImagePrepare:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "clip": ("CLIP",),
-                "prompt": ("STRING", {"multiline": True, "dynamicPrompts": True, "default": ""}),
-                "width": ("INT", {"default": 1344, "min": 32, "max": 16384, "step": 32}),
-                "height": ("INT", {"default": 768, "min": 32, "max": 16384, "step": 32}),
+                "clip": ("CLIP", {"tooltip": "MiniMax H3 Qwen text/vision encoder."}),
+                "prompt": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "dynamicPrompts": True,
+                        "default": "",
+                        "tooltip": "Describe the final still image, including subject, composition, lighting and style.",
+                    },
+                ),
+                "width": (
+                    "INT",
+                    {
+                        "default": 1344,
+                        "min": 32,
+                        "max": 16384,
+                        "step": 32,
+                        "tooltip": "Output canvas width. Connect an H3 Image Resolution node for safer presets.",
+                    },
+                ),
+                "height": (
+                    "INT",
+                    {
+                        "default": 768,
+                        "min": 32,
+                        "max": 16384,
+                        "step": 32,
+                        "tooltip": "Output canvas height. Connect an H3 Image Resolution node for safer presets.",
+                    },
+                ),
                 "quality_profile": (
                     list(FRAME_PRESETS.keys()),
                     {
@@ -884,6 +939,13 @@ class H3TextToImagePrepare:
 
     RETURN_TYPES = ("CONDITIONING", "LATENT", "INT", "STRING", "STRING")
     RETURN_NAMES = ("positive", "h3_latent", "requested_frames", "image_prompt", "run_info")
+    OUTPUT_TOOLTIPS = (
+        "Positive FL2VA text-to-image conditioning for the sampler's positive input.",
+        "Packed H3 audio/video latent containing the requested temporal image packet.",
+        "Number of image frames that Exact Frame Decode should preserve and decode.",
+        "Final still-image prompt after optional optimization.",
+        "Temporal packet, canvas, checkpoint expectations and recommended output strategy.",
+    )
     FUNCTION = "prepare"
     CATEGORY = CATEGORY
 
@@ -925,12 +987,38 @@ class H3ImageToImagePrepare:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "clip": ("CLIP",),
-                "vae": ("VAE",),
-                "source_image": ("IMAGE",),
-                "edit_instruction": ("STRING", {"multiline": True, "dynamicPrompts": True, "default": ""}),
-                "width": ("INT", {"default": 1344, "min": 32, "max": 16384, "step": 32}),
-                "height": ("INT", {"default": 768, "min": 32, "max": 16384, "step": 32}),
+                "clip": ("CLIP", {"tooltip": "MiniMax H3 Qwen text/vision encoder."}),
+                "vae": ("VAE", {"tooltip": "MiniMax H3 video VAE used to encode the source frame."}),
+                "source_image": ("IMAGE", {"tooltip": "Source image used as FL2VA's frame-0 anchor."}),
+                "edit_instruction": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "dynamicPrompts": True,
+                        "default": "",
+                        "tooltip": "Describe the desired final image and the changes to apply to the source.",
+                    },
+                ),
+                "width": (
+                    "INT",
+                    {
+                        "default": 1344,
+                        "min": 32,
+                        "max": 16384,
+                        "step": 32,
+                        "tooltip": "Generation canvas width; the source is fitted to this canvas before encoding.",
+                    },
+                ),
+                "height": (
+                    "INT",
+                    {
+                        "default": 768,
+                        "min": 32,
+                        "max": 16384,
+                        "step": 32,
+                        "tooltip": "Generation canvas height; the source is fitted to this canvas before encoding.",
+                    },
+                ),
                 "quality_profile": (
                     list(FRAME_PRESETS.keys()),
                     {
@@ -952,7 +1040,13 @@ class H3ImageToImagePrepare:
                         ),
                     },
                 ),
-                "source_fit": (["crop_center", "contain_pad", "stretch"], {"default": "crop_center"}),
+                "source_fit": (
+                    ["crop_center", "contain_pad", "stretch"],
+                    {
+                        "default": "crop_center",
+                        "tooltip": "How the source is fitted to the generation canvas before VAE encoding.",
+                    },
+                ),
                 "optimize_for_still": ("BOOLEAN", {
                     "default": True,
                     "tooltip": "Adds a locked-camera still-image prompt wrapper and source-preservation language. Sampling settings are unchanged.",
@@ -962,6 +1056,14 @@ class H3ImageToImagePrepare:
 
     RETURN_TYPES = ("CONDITIONING", "LATENT", "IMAGE", "INT", "STRING", "STRING")
     RETURN_NAMES = ("positive", "h3_latent", "fitted_source", "requested_frames", "image_prompt", "run_info")
+    OUTPUT_TOOLTIPS = (
+        "Positive FL2VA image-to-image conditioning for the sampler's positive input.",
+        "Packed H3 audio/video latent with the fitted source encoded as frame-0 anchor.",
+        "Source image after the selected crop, pad or stretch operation.",
+        "Number of image frames that Exact Frame Decode should preserve and decode.",
+        "Final edit prompt after optional still-image and source-preservation optimization.",
+        "Temporal packet, source-fit, checkpoint expectations and recommended selection strategy.",
+    )
     FUNCTION = "prepare"
     CATEGORY = CATEGORY
 
@@ -1006,12 +1108,38 @@ class H3ReferenceEditPrepare:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "clip": ("CLIP",),
-                "vae": ("VAE",),
-                "source_image": ("IMAGE",),
-                "edit_instruction": ("STRING", {"multiline": True, "dynamicPrompts": True, "default": ""}),
-                "width": ("INT", {"default": 1344, "min": 32, "max": 16384, "step": 32}),
-                "height": ("INT", {"default": 768, "min": 32, "max": 16384, "step": 32}),
+                "clip": ("CLIP", {"tooltip": "MiniMax H3 Qwen text/vision encoder."}),
+                "vae": ("VAE", {"tooltip": "MiniMax H3 video VAE used to encode every ordered reference image."}),
+                "source_image": ("IMAGE", {"tooltip": "Primary REF2VA reference, addressed as <Picture 1> in the prompt."}),
+                "edit_instruction": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "dynamicPrompts": True,
+                        "default": "",
+                        "tooltip": "Describe the final image and refer to inputs explicitly as <Picture 1>, <Picture 2>, and so on.",
+                    },
+                ),
+                "width": (
+                    "INT",
+                    {
+                        "default": 1344,
+                        "min": 32,
+                        "max": 16384,
+                        "step": 32,
+                        "tooltip": "Generation canvas width; references retain their own aspect ratio before encoding.",
+                    },
+                ),
+                "height": (
+                    "INT",
+                    {
+                        "default": 768,
+                        "min": 32,
+                        "max": 16384,
+                        "step": 32,
+                        "tooltip": "Generation canvas height; references retain their own aspect ratio before encoding.",
+                    },
+                ),
                 "quality_profile": (
                     list(FRAME_PRESETS.keys()),
                     {
@@ -1032,7 +1160,13 @@ class H3ReferenceEditPrepare:
                         ),
                     },
                 ),
-                "source_fit": (["crop_center", "contain_pad", "stretch"], {"default": "crop_center"}),
+                "source_fit": (
+                    ["crop_center", "contain_pad", "stretch"],
+                    {
+                        "default": "crop_center",
+                        "tooltip": "How the primary source preview is fitted to the generation canvas.",
+                    },
+                ),
                 "reference_detail": (
                     ["match_generation_area", "max_identity_2048"],
                     {
@@ -1062,6 +1196,14 @@ class H3ReferenceEditPrepare:
 
     RETURN_TYPES = ("CONDITIONING", "LATENT", "IMAGE", "INT", "STRING", "STRING")
     RETURN_NAMES = ("positive", "h3_latent", "fitted_source", "requested_frames", "image_prompt", "run_info")
+    OUTPUT_TOOLTIPS = (
+        "Positive REF2VA reference-edit conditioning for the sampler's positive input.",
+        "Packed H3 audio/video latent prepared for reference-guided regeneration.",
+        "Primary source fitted to the output canvas for preview and comparison.",
+        "Number of image frames that Exact Frame Decode should preserve and decode.",
+        "Final ordered-reference prompt after optional preservation optimization.",
+        "Reference count, temporal packet, checkpoint expectations and recommended selection strategy.",
+    )
     FUNCTION = "prepare"
     CATEGORY = CATEGORY
 
@@ -1140,12 +1282,13 @@ class H3ImageDecode:
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "INT", "STRING")
-    RETURN_NAMES = ("frames", "decoded_frames", "decode_info")
+    RETURN_TYPES = ("IMAGE", "INT", "STRING", "INT")
+    RETURN_NAMES = ("frames", "decoded_frames", "decode_info", "recommended_index")
     OUTPUT_TOOLTIPS = (
         "Complete decoded profile(s), flattened batch-major for standard ComfyUI IMAGE output.",
         "Total number of emitted images across all batch items.",
         "Natural packet size, kept profile size and preferred-frame diagnostic information per batch item.",
+        "Preferred zero-based still index for the first batch item. Connect it to Single Image Output.",
     )
     FUNCTION = "decode"
     CATEGORY = CATEGORY
@@ -1216,16 +1359,15 @@ class H3ImageDecode:
             f"Preferred still(s) via {output_strategy}: {preferred_text}. "
             "No requested profile frames were discarded before Single Image Output."
         )
-        return images_out, decoded_frames, info
+        return images_out, decoded_frames, info, preferred_indices[0]
 
 
 class H3ImageFrameSelector:
     """Select one still or expose the complete decoded H3 frame batch."""
 
     DESCRIPTION = (
-        "Scores a decoded H3 image batch and normally emits one selected still. Enable emit_candidate_batch to send "
-        "the complete decoded batch through selected_image while retaining a ranked top-k diagnostic subset on the "
-        "second IMAGE output."
+        "Selects the mode-aware recommendation from Exact Frame Decode by default, or scores a decoded H3 image "
+        "batch with optional quality/similarity strategies. Enable emit_candidate_batch to expose every frame."
     )
 
     @classmethod
@@ -1242,6 +1384,8 @@ class H3ImageFrameSelector:
                     },
                 ),
                 "strategy": ([
+                    "decode_recommended",
+                    "first",
                     "stable_quality",
                     "balanced_edit",
                     "best_quality",
@@ -1251,9 +1395,10 @@ class H3ImageFrameSelector:
                     "last",
                     "manual_index",
                 ], {
-                    "default": "stable_quality",
+                    "default": "decode_recommended",
                     "tooltip": (
-                        "How the single preferred still is chosen. stable_quality favors sharp, clean and temporally "
+                        "decode_recommended uses Exact Frame Decode's mode-aware recommendation (connect its index). "
+                        "first selects frame 0. stable_quality favors sharp, clean and temporally "
                         "stable frames. balanced_edit combines source similarity with stable quality. best_quality "
                         "uses sharpness, contrast and exposure. most_similar_to_source requires source_image. sharpest "
                         "uses edge detail only. middle, last and manual_index select a fixed frame without scoring."
@@ -1262,7 +1407,7 @@ class H3ImageFrameSelector:
                 "manual_index": (
                     "INT",
                     {
-                        "default": 1,
+                        "default": 0,
                         "min": 0,
                         "max": 4096,
                         "step": 1,
@@ -1272,13 +1417,13 @@ class H3ImageFrameSelector:
                 "skip_first_frames": (
                     "INT",
                     {
-                        "default": 1,
+                        "default": 0,
                         "min": 0,
                         "max": 128,
                         "step": 1,
                         "tooltip": (
-                            "Excludes this many initial frames from automatic scoring. Useful for FL2VA I2I because "
-                            "early frames may remain close to the source anchor. Ignored by middle, last and manual_index."
+                            "Excludes this many initial frames from metric-based scoring. Leave at 0 unless a specific "
+                            "generation shows an unstable opening frame. Ignored by fixed-index strategies."
                         ),
                     },
                 ),
@@ -1352,9 +1497,19 @@ class H3ImageFrameSelector:
                         "default": False,
                         "tooltip": (
                             "OFF: selected_image contains only the picked still. ON: selected_image contains the entire "
-                            "decoded 5- or 20-frame batch, so an already-connected Preview Image or Save Image node "
+                            "decoded 5-, 9-, 13-, or 20-frame batch, so an already-connected Preview Image or Save Image node "
                             "shows or saves every generated image. candidate_batch_debug remains the ranked top-k "
                             "subset. Enabling this intentionally retains more RAM/VRAM."
+                        ),
+                    },
+                ),
+                "recommended_index": (
+                    "INT",
+                    {
+                        "forceInput": True,
+                        "tooltip": (
+                            "Connect recommended_index from Exact Frame Decode. Used by decode_recommended; if left "
+                            "unconnected, frame 0 is selected."
                         ),
                     },
                 ),
@@ -1462,37 +1617,27 @@ class H3ImageFrameSelector:
         top_k: int,
         source_image: Optional[torch.Tensor] = None,
         emit_candidate_batch: bool = False,
+        recommended_index: Optional[int] = None,
     ):
         if frames.ndim != 4 or frames.shape[0] < 1:
             raise ValueError("frames must be a non-empty ComfyUI IMAGE batch [N,H,W,C]")
 
         n = int(frames.shape[0])
-        if strategy == "manual_index":
-            selected_index = max(0, min(n - 1, int(manual_index)))
+        fixed_indices = {
+            "decode_recommended": 0 if recommended_index is None else int(recommended_index),
+            "first": 0,
+            "manual_index": int(manual_index),
+            "middle": n // 2,
+            "last": n - 1,
+        }
+        if strategy in fixed_indices:
+            selected_index = max(0, min(n - 1, fixed_indices[strategy]))
             chosen = frames[selected_index:selected_index + 1].clone()
             primary = self._primary_output(frames, chosen, emit_candidate_batch)
             debug = chosen.clone() if emit_candidate_batch else self._empty_debug(frames)
-            report = f"Manual frame {selected_index}/{n - 1}."
-            if emit_candidate_batch:
-                report += f" selected_image emits the complete {n}-frame batch; candidate_batch_debug contains the chosen frame."
-            return primary, debug, selected_index, 1.0, report
-
-        if strategy == "middle":
-            selected_index = n // 2
-            chosen = frames[selected_index:selected_index + 1].clone()
-            primary = self._primary_output(frames, chosen, emit_candidate_batch)
-            debug = chosen.clone() if emit_candidate_batch else self._empty_debug(frames)
-            report = f"Middle frame {selected_index}/{n - 1}."
-            if emit_candidate_batch:
-                report += f" selected_image emits the complete {n}-frame batch; candidate_batch_debug contains the chosen frame."
-            return primary, debug, selected_index, 1.0, report
-
-        if strategy == "last":
-            selected_index = n - 1
-            chosen = frames[-1:].clone()
-            primary = self._primary_output(frames, chosen, emit_candidate_batch)
-            debug = chosen.clone() if emit_candidate_batch else self._empty_debug(frames)
-            report = f"Last frame {selected_index}/{n - 1}."
+            report = f"Fixed strategy={strategy}; frame {selected_index}/{n - 1}."
+            if strategy == "decode_recommended" and recommended_index is None:
+                report += " recommended_index was not connected, so frame 0 was used."
             if emit_candidate_batch:
                 report += f" selected_image emits the complete {n}-frame batch; candidate_batch_debug contains the chosen frame."
             return primary, debug, selected_index, 1.0, report
@@ -1664,6 +1809,12 @@ class H3SamplingSettings:
 
     RETURN_TYPES = ("MODEL", "SAMPLER", "SIGMAS", "STRING")
     RETURN_NAMES = ("shifted_model", "sampler", "sigmas", "sampling_info")
+    OUTPUT_TOOLTIPS = (
+        "Cloned model patched with H3 video/audio flow-sampling shifts.",
+        "Configured ComfyUI sampler object for SamplerCustomAdvanced.",
+        "Sigma schedule after applying steps, scheduler and denoise semantics.",
+        "Resolved sampler, scheduler, step count, shifts and AV sampling backend.",
+    )
     FUNCTION = "build"
     CATEGORY = CATEGORY
 
@@ -1675,17 +1826,33 @@ class H3SamplingSettings:
         # retain ModelSamplingAV semantics even for image-only output because the
         # packed latent still contains an audio stream during denoising. In
         # particular, H3 sampling reads model_sampling.audio_scale.
-        class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingAV, comfy.model_sampling.CONST):
-            pass
+        av_sampling = getattr(comfy.model_sampling, "ModelSamplingAV", None)
+        sampling_base = av_sampling or comfy.model_sampling.ModelSamplingDiscreteFlow
+
+        class ModelSamplingAdvanced(sampling_base, comfy.model_sampling.CONST):
+            if av_sampling is None:
+                audio_shift = None
+
+                @property
+                def audio_scale(self):
+                    if self.audio_shift is None:
+                        return 1.0
+                    return self.shift / self.audio_shift
 
         original = m.get_model_object("model_sampling")
         model_sampling = ModelSamplingAdvanced(m.model.model_config)
         multiplier = getattr(original, "multiplier", 1000)
-        model_sampling.set_parameters(
-            shift=float(shift_video),
-            audio_shift=float(shift_audio),
-            multiplier=multiplier,
-        )
+        if av_sampling is not None:
+            model_sampling.set_parameters(
+                shift=float(shift_video),
+                audio_shift=float(shift_audio),
+                multiplier=multiplier,
+            )
+            sampling_backend = "ModelSamplingAV"
+        else:
+            model_sampling.set_parameters(shift=float(shift_video), multiplier=multiplier)
+            model_sampling.audio_shift = float(shift_audio)
+            sampling_backend = "ModelSamplingAV compatibility shim"
         if hasattr(original, "noise_scale"):
             model_sampling.set_noise_scale(original.noise_scale)
         m.add_object_patch("model_sampling", model_sampling)
@@ -1694,7 +1861,7 @@ class H3SamplingSettings:
         transformer_options["minimax_h3_sigma_shift_video"] = float(shift_video)
         transformer_options["minimax_h3_sigma_shift_audio"] = float(shift_audio)
         m.model_options["transformer_options"] = transformer_options
-        return m
+        return m, sampling_backend
 
     def build(
         self,
@@ -1708,7 +1875,7 @@ class H3SamplingSettings:
         beta_alpha: float,
         beta_beta: float,
     ):
-        shifted_model = self._apply_h3_shift(model, shift_video, shift_audio)
+        shifted_model, sampling_backend = self._apply_h3_shift(model, shift_video, shift_audio)
         sampler = comfy.samplers.sampler_object(sampler_name)
 
         model_sampling = shifted_model.get_model_object("model_sampling")
@@ -1720,7 +1887,8 @@ class H3SamplingSettings:
             beta_note = f" | beta alpha={beta_alpha:g}, beta={beta_beta:g}" if scheduler == "beta_custom" else ""
             info = (
                 f"sampler={sampler_name} | scheduler={scheduler} | steps={steps} | denoise=0 | "
-                f"schedule_steps=0 | shift_video={shift_video:g} | shift_audio={shift_audio:g}{beta_note}"
+                f"schedule_steps=0 | shift_video={shift_video:g} | shift_audio={shift_audio:g} | "
+                f"backend={sampling_backend}{beta_note}"
             )
             return shifted_model, sampler, sigmas, info
 
@@ -1748,7 +1916,8 @@ class H3SamplingSettings:
         beta_note = f" | beta alpha={beta_alpha:g}, beta={beta_beta:g}" if scheduler == "beta_custom" else ""
         info = (
             f"sampler={sampler_name} | scheduler={scheduler} | steps={steps} | denoise={denoise:g} | "
-            f"schedule_steps={total_steps} | shift_video={shift_video:g} | shift_audio={shift_audio:g}{beta_note}"
+            f"schedule_steps={total_steps} | shift_video={shift_video:g} | shift_audio={shift_audio:g} | "
+            f"backend={sampling_backend}{beta_note}"
         )
         return shifted_model, sampler, sigmas, info
 
@@ -1757,8 +1926,8 @@ class H3ImageSamplingPreset:
     """Small, safe image-mode sampling UI built from official H3 settings."""
 
     DESCRIPTION = (
-        "Applies H3 image sampling presets using res_multistep + simple: 20-step quality, 12-step speed, plus "
-        "8-step and experimental 4-step presets intended for compatible MiniMax H3 Turbo LoRAs."
+        "Applies explicit H3 image recipes: base RES Multistep profiles and the published LightX v0.1 "
+        "four-step ER-SDE / SA-Solver profiles. The LoRA itself must be loaded upstream."
     )
 
     @classmethod
@@ -1767,13 +1936,12 @@ class H3ImageSamplingPreset:
             "required": {
                 "model": ("MODEL", {"tooltip": "Loaded MiniMax H3 diffusion model."}),
                 "sampling_profile": (
-                    list(SAMPLING_PROFILES.keys()),
+                    list(SAMPLING_PROFILES.keys()) + list(LEGACY_SAMPLING_PROFILES.keys()),
                     {
-                        "default": "quality | 20 steps",
+                        "default": "base quality | RES 20 steps",
                         "tooltip": (
-                            "20 steps is the base quality preset; 12 steps is the base speed preset. Turbo 8/4-step "
-                            "presets are intended for a compatible H3 Turbo LoRA loaded upstream with "
-                            "LoraLoaderModelOnly. Start with the 8-step preset; the 4-step preset is experimental."
+                            "Base profiles use RES Multistep. LightX v0.1 profiles reproduce Kijai's published "
+                            "four-step ER-SDE or SA-Solver recipe and expect the matching LightX LoRA upstream."
                         ),
                     },
                 ),
@@ -1782,11 +1950,20 @@ class H3ImageSamplingPreset:
 
     RETURN_TYPES = ("MODEL", "SAMPLER", "SIGMAS", "STRING")
     RETURN_NAMES = ("model", "sampler", "sigmas", "sampling_info")
+    OUTPUT_TOOLTIPS = (
+        "Cloned model patched with the selected H3 recipe's video/audio shifts.",
+        "Sampler required by the selected base or LightX v0.1 recipe.",
+        "Complete sigma schedule for the selected recipe.",
+        "Resolved profile, sampler, scheduler, step count, shifts and AV sampling backend.",
+    )
     FUNCTION = "build"
     CATEGORY = CATEGORY
 
     def build(self, model, sampling_profile: str):
-        sampler_name, scheduler, steps, shift_video, shift_audio = SAMPLING_PROFILES[sampling_profile]
+        profiles = {**LEGACY_SAMPLING_PROFILES, **SAMPLING_PROFILES}
+        if sampling_profile not in profiles:
+            raise ValueError(f"Unknown H3 sampling profile: {sampling_profile}")
+        sampler_name, scheduler, steps, shift_video, shift_audio = profiles[sampling_profile]
         shifted_model, sampler, sigmas, info = H3SamplingSettings().build(
             model=model,
             sampler_name=sampler_name,
@@ -1801,6 +1978,43 @@ class H3ImageSamplingPreset:
         return shifted_model, sampler, sigmas, f"profile={sampling_profile} | {info}"
 
 
+class H3WorkflowNote:
+    """Non-executing documentation card used by the bundled UI workflows."""
+
+    DESCRIPTION = (
+        "A multiline documentation card for Image Studio workflows. It has no outputs and does not participate in "
+        "generation; edit or delete it freely."
+    )
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "section": (
+                    ["quick start", "models", "settings", "optional / experimental", "troubleshooting"],
+                    {"default": "quick start", "tooltip": "Visual section label for this workflow note."},
+                ),
+                "text": (
+                    "STRING",
+                    {
+                        "default": "Workflow guidance goes here.",
+                        "multiline": True,
+                        "dynamicPrompts": False,
+                        "tooltip": "Plain-text workflow instructions. This text is never sent to MiniMax H3.",
+                    },
+                ),
+            }
+        }
+
+    RETURN_TYPES = ()
+    FUNCTION = "display"
+    CATEGORY = f"{CATEGORY}/Documentation"
+
+    @staticmethod
+    def display(section: str, text: str):
+        return ()
+
+
 NODE_CLASS_MAPPINGS = {
     "H3ImageSamplingPreset": H3ImageSamplingPreset,
     "H3SamplingSettings": H3SamplingSettings,
@@ -1812,6 +2026,7 @@ NODE_CLASS_MAPPINGS = {
     "H3ImagePrepare": H3ImagePrepare,
     "H3ImageDecode": H3ImageDecode,
     "H3ImageFrameSelector": H3ImageFrameSelector,
+    "H3WorkflowNote": H3WorkflowNote,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1825,4 +2040,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "H3ImagePrepare": "MiniMax H3 Image • Advanced Combined Prepare",
     "H3ImageDecode": "MiniMax H3 Image • Exact Frame Decode",
     "H3ImageFrameSelector": "MiniMax H3 Image • Single Image Output",
+    "H3WorkflowNote": "MiniMax H3 Image • Workflow Note",
 }
