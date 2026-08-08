@@ -46,9 +46,32 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 - Tested selector, decoder and sampling compatibility logic with PyTorch.
 - Audited all 11 node definitions through ComfyUI's live `/object_info` endpoint.
 
-## [0.14.0]
+## [14.0.0] - 2026-08-08
 
 - Fixed H3 `audio_scale` failures by retaining `ModelSamplingAV` during sigma-shift patching.
 - Added 5/9/13/20-frame image profiles.
 - Added the first generic Turbo-oriented sampling presets and API example.
 - Added full candidate-batch inspection and memory-conscious metric scoring.
+
+## [13.0.0] - 2026-08-03
+
+- Added ordered multi-image REF2VA input with one source plus up to eight reference images.
+- Simplified first-frame profiles and fixed the 20-frame image-editing path.
+- Preserved complete candidate batches for inspection and downstream selection.
+- Completed a full node audit and fixed the H3 `audio_scale` sampling crash.
+
+## [12.0.0] - 2026-08-03
+
+- Added measured performance, memory and output-quality guidance.
+- Documented the practical trade-offs of frame count and output resolution.
+
+## [11.0.0] - 2026-08-03
+
+- Removed untested auxiliary nodes and focused the extension on image generation and editing.
+- Made the project's experimental, AI-assisted status explicit.
+
+## [10.0.0] - 2026-08-03
+
+- Published the first repository snapshot of MiniMax H3 Image Studio.
+- Added text-to-image, image-to-image and reference-edit conditioning.
+- Added arbitrary frame counts, resolution controls and automatic still-frame selection.

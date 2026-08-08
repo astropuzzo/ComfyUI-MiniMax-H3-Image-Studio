@@ -26,6 +26,16 @@ jobs:
         if: ${{ env.REGISTRY_ACCESS_TOKEN == '' }}
         run: echo "::warning::Create the Comfy publisher and add the REGISTRY_ACCESS_TOKEN repository secret, then run this workflow manually."
 
+      - name: Prepare Registry changelog
+        if: ${{ env.REGISTRY_ACCESS_TOKEN != '' }}
+        shell: bash
+        run: |
+          {
+            echo 'COMFY_NODE_CHANGELOG<<__COMFY_CHANGELOG__'
+            python scripts/extract_release_notes.py
+            echo '__COMFY_CHANGELOG__'
+          } >> "$GITHUB_ENV"
+
       - name: Publish version
         if: ${{ env.REGISTRY_ACCESS_TOKEN != '' }}
         uses: Comfy-Org/publish-node-action@main

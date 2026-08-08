@@ -1,0 +1,178 @@
+name: Backfill Comfy Registry history
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/backfill_registry_history.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: comfy-registry-publish
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    name: Publish historic v${{ matrix.version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - version: "10.0.0"
+            commit: "6312094f3ef6ba5688a5f979a9f6d80011f93207"
+            changelog: >-
+              Initial public Image Studio snapshot with text-to-image,
+              image-to-image, reference editing, arbitrary frame counts,
+              resolution controls and automatic still-frame selection.
+          - version: "11.0.0"
+            commit: "723dad180ea69b7c28f11286e3d59e74ab3dbd67"
+            changelog: >-
+              Focused the package on the tested image-generation path, removed
+              untested auxiliary nodes and documented the experimental status.
+          - version: "12.0.0"
+            commit: "b902a1dcfef18dd3f0d72fbb394b0ae414c5be80"
+            changelog: >-
+              Added measured performance and quality guidance for practical H3
+              still-image generation.
+          - version: "13.0.0"
+            commit: "18b2199bc8569f0177b4bbf0cb377ae70bae3aac"
+            changelog: >-
+              Added multi-image REF2VA references, simplified frame profiles,
+              fixed 20-frame editing, preserved candidate batches, completed a
+              full node audit and fixed the H3 audio_scale sampling crash.
+          - version: "14.0.0"
+            commit: "991a9f628db72d0029d80ebcd1a9a365cb37202a"
+            changelog: >-
+              Preserved native ModelSamplingAV behavior, added 5/9/13/20-frame
+              profiles and introduced Turbo-oriented sampling presets.
+    env:
+      REGISTRY_ACCESS_TOKEN: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
+      COMFY_NODE_CHANGELOG: ${{ matrix.changelog }}
+      RELEASE_VERSION: ${{ matrix.version }}
+    steps:
+      - name: Require Registry token
+        if: ${{ env.REGISTRY_ACCESS_TOKEN == '' }}
+        run: |
+          echo "::error::REGISTRY_ACCESS_TOKEN is not configured."
+          exit 1
+
+      - name: Check whether version already exists
+        id: registry
+        if: ${{ env.REGISTRY_ACCESS_TOKEN != '' }}
+        shell: bash
+        run: |
+          status="$(curl --silent --show-error \
+            --output /tmp/registry-version.json \
+            --write-out '%{http_code}' \
+            "https://api.comfy.org/nodes/minimax-h3-image-studio/versions/${RELEASE_VERSION}")"
+          case "$status" in
+            200) echo "exists=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "exists=false" >> "$GITHUB_OUTPUT" ;;
+            *)
+              cat /tmp/registry-version.json
+              echo "::error::Registry lookup returned HTTP ${status}."
+              exit 1
+              ;;
+          esac
+
+      - name: Check out historic release
+        if: ${{ steps.registry.outputs.exists == 'false' }}
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ matrix.commit }}
+
+      - name: Inject Registry metadata
+        if: ${{ steps.registry.outputs.exists == 'false' }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          version = os.environ["RELEASE_VERSION"]
+          metadata = f'''[project]
+          name = "minimax-h3-image-studio"
+          version = "{version}"
+          description = "Image-first ComfyUI nodes and workflows for MiniMax H3 T2I, I2I and reference editing."
+          readme = "README.md"
+          license = {{ file = "LICENSE" }}
+          requires-python = ">=3.10"
+          dependencies = []
+          classifiers = ["Operating System :: OS Independent"]
+
+          [project.urls]
+          Repository = "https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio"
+          "Bug Tracker" = "https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/issues"
+
+          [tool.comfy]
+          PublisherId = "astropuzzo"
+          DisplayName = "MiniMax H3 Image Studio"
+          Icon = "https://raw.githubusercontent.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/main/assets/branding/minimax-h3-image-studio.svg"
+          Banner = "https://raw.githubusercontent.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/main/assets/branding/minimax-h3-banner.svg"
+          requires-comfyui = ">=0.30.0"
+          '''
+          Path("pyproject.toml").write_text(metadata, encoding="utf-8")
+          PY
+          git add -f pyproject.toml
+
+      - name: Publish historic version
+        if: ${{ steps.registry.outputs.exists == 'false' }}
+        uses: Comfy-Org/publish-node-action@main
+        with:
+          personal_access_token: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
+          skip_checkout: "true"
+
+      - name: Mark historic version as deprecated
+        if: ${{ env.REGISTRY_ACCESS_TOKEN != '' && (steps.registry.outputs.exists == 'true' || success()) }}
+        shell: bash
+        run: |
+          curl --fail --silent --show-error \
+            "https://api.comfy.org/nodes/minimax-h3-image-studio/versions/${RELEASE_VERSION}" \
+            --output /tmp/registry-version.json
+          version_id="$(python3 -c 'import json; print(json.load(open("/tmp/registry-version.json"))["id"])')"
+          curl --fail --silent --show-error \
+            --request PUT \
+            --url "https://api.comfy.org/publishers/astropuzzo/nodes/minimax-h3-image-studio/versions/${version_id}" \
+            --header "Authorization: Bearer ${REGISTRY_ACCESS_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data '{"deprecated":true}' \
+            --output /dev/null
+
+  update-current-changelog:
+    name: Add v15 Registry changelog
+    needs: backfill
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY_ACCESS_TOKEN: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Update v15 changelog
+        shell: bash
+        run: |
+          python scripts/extract_release_notes.py 15.0.0 > /tmp/changelog.md
+          curl --fail --silent --show-error \
+            "https://api.comfy.org/nodes/minimax-h3-image-studio/versions/15.0.0" \
+            --output /tmp/registry-version.json
+          version_id="$(python3 -c 'import json; print(json.load(open("/tmp/registry-version.json"))["id"])')"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = {
+              "changelog": Path("/tmp/changelog.md").read_text(encoding="utf-8"),
+              "deprecated": False,
+          }
+          Path("/tmp/version-update.json").write_text(json.dumps(payload), encoding="utf-8")
+          PY
+          curl --fail --silent --show-error \
+            --request PUT \
+            --url "https://api.comfy.org/publishers/astropuzzo/nodes/minimax-h3-image-studio/versions/${version_id}" \
+            --header "Authorization: Bearer ${REGISTRY_ACCESS_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data-binary @/tmp/version-update.json \
+            --output /dev/null

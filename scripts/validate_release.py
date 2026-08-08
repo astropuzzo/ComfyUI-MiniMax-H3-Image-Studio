@@ -145,6 +145,8 @@ def validate_registry_assets(repo: Path) -> None:
     workflow = (repo / ".github" / "workflows" / "publish_registry.yml").read_text(encoding="utf-8")
     assert "Comfy-Org/publish-node-action@main" in workflow
     assert "REGISTRY_ACCESS_TOKEN" in workflow
+    assert "COMFY_NODE_CHANGELOG" in workflow
+    assert "scripts/extract_release_notes.py" in workflow
 
 
 def validate_api(repo: Path, slug: str) -> dict:
