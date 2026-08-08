@@ -235,3 +235,22 @@ Use [GitHub Issues](https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studi
 `pyproject.toml` declares semantic version `15.0.0`, publisher `astropuzzo`, the packaged icon and `requires-comfyui = ">=0.30.0"`. Publishing still requires the matching publisher identity and API key in the [Comfy Registry](https://registry.comfy.org/).
 
 Image Studio is released under [The Unlicense](LICENSE). MiniMax H3, ComfyUI, adapters, models and optional custom nodes retain their own licenses and usage terms.
+
+## Project growth
+
+<p align="center">
+  <a href="https://star-history.com/#astropuzzo/ComfyUI-MiniMax-H3-Image-Studio&Date">
+    <img src="https://api.star-history.com/svg?repos=astropuzzo/ComfyUI-MiniMax-H3-Image-Studio&amp;type=Date" width="760" alt="GitHub star history for MiniMax H3 Image Studio">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/stargazers">
+    <img src="https://img.shields.io/github/stars/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio?style=for-the-badge&amp;logo=github&amp;label=GitHub%20stars&amp;color=f5b700" alt="GitHub stars">
+  </a>
+  <a href="https://registry.comfy.org/nodes/minimax-h3-image-studio">
+    <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.comfy.org%2Fnodes%2Fminimax-h3-image-studio&amp;query=%24.downloads&amp;label=Comfy%20Registry%20downloads&amp;style=for-the-badge&amp;color=6f42c1" alt="Comfy Registry downloads">
+  </a>
+</p>
+
+<p align="center"><sub>The download count is supplied live by the Comfy Registry. The Registry does not currently expose unique installation counts.</sub></p>
