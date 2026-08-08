@@ -251,8 +251,8 @@ Image Studio is released under [The Unlicense](LICENSE). MiniMax H3, ComfyUI, ad
     <img src="https://img.shields.io/github/stars/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio?style=for-the-badge&amp;logo=github&amp;label=GitHub%20stars&amp;color=f5b700" alt="GitHub stars">
   </a>
   <a href="https://registry.comfy.org/nodes/minimax-h3-image-studio">
-    <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.comfy.org%2Fnodes%2Fminimax-h3-image-studio&amp;query=%24.downloads&amp;label=Comfy%20Registry%20downloads&amp;style=for-the-badge&amp;color=6f42c1" alt="Comfy Registry downloads">
+    <img src="https://img.shields.io/badge/Comfy%20Registry-view%20package-6f42c1?style=for-the-badge" alt="View on Comfy Registry">
   </a>
 </p>
 
-<p align="center"><sub>The download count is supplied live by the Comfy Registry. The Registry does not currently expose unique installation counts.</sub></p>
+<p align="center"><sub>Download totals are available on the Comfy Registry package page. The Registry does not currently expose unique installation counts through a badge-compatible endpoint.</sub></p>
