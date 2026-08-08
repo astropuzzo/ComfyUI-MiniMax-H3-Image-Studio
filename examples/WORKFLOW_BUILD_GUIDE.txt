@@ -1,9 +1,8 @@
-MINIMAX H3 IMAGE WORKFLOW V13
+MINIMAX H3 IMAGE WORKFLOW V14
 =============================
 
-This is an experimental, entirely AI-coded project. Review and test every
-workflow on your own setup. Bug reports, corrections, and pull requests are
-welcome on GitHub.
+This is an experimental, AI-assisted project. Review and test every workflow on
+your own setup. Bug reports, corrections, and pull requests are welcome.
 
 Requires ComfyUI >= 0.30.0.
 
@@ -13,7 +12,7 @@ MODEL FAMILY
 Text to Image and Image to Image use the FL2VA checkpoint.
 Reference Edit uses the separate REF2VA checkpoint.
 
-All workflows use:
+All base workflows use:
 - Qwen3-VL MiniMax text encoder loaded with CLIPLoader type=minimax
 - minimax_h3_video_vae_fp16.safetensors
 - BasicGuider; H3 is CFG-distilled and does not need a negative CFG branch
@@ -24,22 +23,21 @@ All workflows use:
 FRAME PROFILES
 ==============
 
-- recommended | 5 frames: best speed/quality balance and the default.
-- maximum quality | 20 frames (slow): more temporal context, potentially higher
-  quality, and a much longer generation time.
+- recommended | 5 frames: default and best-tested speed/quality balance
+- extended quality | 9 frames: intermediate temporal context
+- high quality | 13 frames: higher temporal context
+- maximum quality | 20 frames (slow): highest exposed context and much slower
 
 H3 jointly denoises the complete temporal packet. Exact Frame Decode preserves
-the complete requested 5- or 20-frame profile and removes only natural VAE packet
-surplus (for example, a 20-frame request naturally decodes 22 frames). Single
-Image Output then scores that profile and normally emits one still.
+the requested profile and removes only natural VAE packet surplus. A 20-frame
+request, for example, naturally decodes 22 frames and is cropped back to 20.
+The 9- and 13-frame profiles map to exact intermediate decode lengths in H3's
+temporal token pattern. Single Image Output then scores the profile and normally
+emits one still.
 
 With emit_candidate_batch enabled, Single Image Output.selected_image emits the
-complete decoded profile instead. candidate_batch_debug remains the ranked top-k
-subset, so top_k does not limit the complete batch.
-
-For 20-frame FL2VA I2I, Exact Frame Decode also measures the first stable changed
-frame for diagnostics. Batched decodes are cropped per batch item and the stable
-index is measured independently for each item.
+complete decoded profile. candidate_batch_debug remains the ranked top-k subset,
+so top_k does not limit the complete batch.
 
 COMMON CONNECTIONS
 ==================
@@ -63,10 +61,11 @@ TEXT TO IMAGE
 Use MiniMax H3 Image - Text to Image with FL2VA.
 Connect Resolution Preset width/height to the image node.
 
-Recommended setup:
-- 5 frames + quality / 20 steps for the standard quality preset.
-- 5 frames + speed / 12 steps for faster generation.
-- 20 frames + quality / 20 steps for maximum quality when time is secondary.
+Suggested base starting points:
+- 5 frames + quality / 20 steps
+- 5 frames + speed / 12 steps
+- 9 or 13 frames when you want more temporal context without jumping to 20
+- 20 frames + quality / 20 steps when time and memory are secondary
 
 Use stable_quality or best_quality in Single Image Output. Keep
 emit_candidate_batch disabled for normal single-image output; enable it only
@@ -76,9 +75,8 @@ IMAGE TO IMAGE
 ==============
 
 Use MiniMax H3 Image - Image to Image with FL2VA.
-Connect LoadImage to:
-- Resolution Preset.source_image when using the source aspect ratio
-- Image to Image.source_image
+Connect LoadImage to Resolution Preset.source_image when using the source aspect
+ratio, and to Image to Image.source_image.
 
 The source becomes a first-frame latent anchor. Source Fidelity changes only the
 preservation language added to the prompt; it is NOT a denoise-strength control
@@ -87,20 +85,48 @@ and does not change the sigma schedule.
 Connect Image to Image.fitted_source to Single Image Output.source_image and use
 balanced_edit to rank both edit quality and source similarity. If a source-based
 selector strategy is chosen without source_image connected, the node reports the
-effective fallback strategy instead of silently claiming the requested strategy ran.
+effective fallback strategy.
 
 REFERENCE EDIT
 ==============
 
 Use MiniMax H3 Image - Reference Edit with REF2VA.
-Connect LoadImage to Resolution Preset and Reference Edit as above.
-Use quality / 20 steps as the starting sampling profile.
+Use quality / 20 steps as the base starting profile.
 
 Reference Edit regenerates from visual reference features rather than using the
 source as an exact first-frame anchor. It supports up to nine ordered references.
 Increase Source Fidelity when identity or composition drifts; reduce it when H3
 refuses the requested change. Source Fidelity is prompt-language preservation,
 not denoise strength.
+
+TURBO LORA
+==========
+
+Turbo support is optional and uses a compatible third-party H3 Turbo LoRA.
+Image Studio does not auto-download or auto-load an adapter.
+
+Connect:
+UNETLoader.MODEL -> LoraLoaderModelOnly.model
+LoraLoaderModelOnly.MODEL -> Sampling Preset.model
+
+Then select:
+- turbo | 8 steps (LoRA): recommended Turbo starting point
+- turbo | 4 steps (LoRA, experimental): aggressive low-step target
+
+The Turbo presets use res_multistep + simple, video shift 12 and audio shift 4.
+Start with the 8-step preset and follow the adapter author's recommended LoRA
+strength/settings. The included H3_I2I_TURBO_LORA_API.json example starts at
+strength 1.0 as a neutral starting point.
+
+IMPORTANT AV SAMPLING NOTE
+==========================
+
+MiniMax H3 keeps a packed audio-video latent internally even when Image Studio
+only decodes images. The sampling object must therefore preserve ComfyUI's
+ModelSamplingAV contract and audio_scale behavior. v14 implements the shift
+patch directly in nodes.py, passes both video and audio shifts, and preserves the
+existing multiplier and noise_scale. The audio VAE is not required for Image
+Studio output and no audio is saved.
 
 ADVANCED COMBINED PREPARE
 =========================
@@ -113,27 +139,26 @@ ignored and reported in run_info.
 SAMPLING
 ========
 
-Sampling Preset uses res_multistep + simple at 20 quality steps or 12 speed steps.
-For manual control use MiniMax H3 Image - Advanced Sampling.
+Base Sampling Preset:
+- quality | 20 steps: res_multistep + simple, shifts 12/3
+- speed | 12 steps: res_multistep + simple, shifts 12/3
 
+Turbo Sampling Preset:
+- turbo | 8 steps (LoRA): res_multistep + simple, shifts 12/4
+- turbo | 4 steps (LoRA, experimental): res_multistep + simple, shifts 12/4
+
+For manual control use MiniMax H3 Image - Advanced Sampling.
 Advanced Sampling applies ComfyUI-style denoise semantics to every scheduler,
 including beta_custom. denoise below 1 builds a longer schedule and keeps its
-final steps; denoise=0 returns empty sigmas. beta_alpha and beta_beta are used only
-by beta_custom.
+final steps; denoise=0 returns empty sigmas. beta_alpha and beta_beta are used
+only by beta_custom.
 
 RESOLUTION
 ==========
 
-Resolution Preset:
-- balanced / 0.70 MP: faster draft
-- native detail / 0.98 MP: native-area final
-- 2, 4, 8 MP and custom 0.1-64 MP: unlocked experiments
-- limit_to_native_area: conservative approximately 1 MP cap
-
-Advanced Resolution uses native_area_cap for the same conservative cap. Selecting
-"source image" without a connected image now raises immediately instead of
-silently generating a square canvas. The [32, 64] grid combo remains unchanged
-for saved-workflow compatibility.
+Resolution Preset includes preview/native-area presets plus 2, 4 and 8 MP and a
+custom 0.1-64 MP range. limit_to_native_area provides a conservative native-area
+cap. Selecting source image without a connected image raises immediately.
 
 High resolution sharply increases VRAM, RAM, decode time, and pagefile pressure.
 It often adds canvas pixels without proportional learned detail.
