@@ -288,41 +288,37 @@ def _normalize_prompt(
 
     preserve_strength = float(max(0.0, min(1.0, preserve_strength)))
     if preserve_strength >= 0.8:
-        preserve = "Preserve the subject identity, facial structure, anatomy, pose, composition, perspective, and major object geometry very strictly."
+        preserve = "Strictly preserve identity, pose, composition, perspective, and object geometry."
     elif preserve_strength >= 0.5:
-        preserve = "Preserve subject identity, anatomy, composition, perspective, and major geometry unless the requested change requires otherwise."
+        preserve = "Preserve identity, pose, composition, perspective, and object geometry unless the edit requires a change."
     else:
-        preserve = "Keep the source recognizable while allowing substantial visual changes requested by the instruction."
+        preserve = "Keep the source recognizable while applying the requested changes."
 
     still = (
-        "Image task: produce one finished, high-definition still composition. Internally, keep that completed image "
-        "visually unchanged across the generated frame packet: locked camera, fixed composition, no cuts, no camera "
-        "movement, no subject motion, no temporal progression, and no audio instructions. Preserve crisp fine texture, "
-        "clean edges, coherent anatomy, and intentional focus where the description calls for them."
+        "Create one still image. Keep the camera, composition, and subjects fixed across all generated frames. "
+        "Do not add motion, cuts, or audio."
     )
 
     if mode == "text_to_image (FL2VA)":
         return f"{still}\n\nTarget image description: {prompt}"
     if mode == "image_to_image (FL2VA)":
         return (
-            f"<Picture 1> is the source image and first-frame anchor. Apply the requested transformation immediately, "
-            f"then hold the fully completed edited result as the still target. {still} {preserve}\n\n"
+            f"<Picture 1> is the source image. Apply the requested edit. {still} {preserve}\n\n"
             f"Target edit: {prompt}"
         )
     picture_tags = ", ".join(f"<Picture {index}>" for index in range(1, reference_count + 1))
     reference_word = "reference" if reference_count == 1 else "references"
     verb = "is" if reference_count == 1 else "are"
     return (
-        f"{picture_tags} {verb} the visual {reference_word} for an image-editing task, not the final output. "
-        f"Use each reference according to the target edit. {still} {preserve}\n\nTarget edit: {prompt}"
+        f"{picture_tags} {verb} the ordered {reference_word}. Use each one as specified. "
+        f"{still} {preserve}\n\nTarget edit: {prompt}"
     )
 
 
 def _prompt_warning(prompt: str) -> str:
     if VIDEO_PROMPT_RE.search(prompt or ""):
         return (
-            " WARNING: the user prompt contains video/timeline/camera-motion/audio language. "
-            "Rewrite it as the exact appearance of one final still; contradictory motion instructions reduce image fidelity."
+            " WARNING: prompt contains motion, timeline, camera, or audio terms. Describe one final still image instead."
         )
     return ""
 
@@ -389,11 +385,10 @@ def _resolve_source_ratio(
 
 
 class H3ImageResolution:
-    """H3-aware resolution selector with source-ratio and native-area safeguards."""
+    """Calculate a custom H3 canvas size."""
 
     DESCRIPTION = (
-        "Advanced canvas calculator. Supports explicit ratios, source-image ratio and custom dimensions while "
-        "optionally limiting the result to H3's native pixel area. Legacy stale resolution kwargs are accepted but ignored."
+        "Calculates custom dimensions on an H3-compatible grid, with an optional native-area limit."
     )
 
     @classmethod
@@ -511,11 +506,10 @@ class H3ImageResolution:
 
 
 class H3ImageResolutionPreset:
-    """Simple H3-native selector using the same megapixel convention as ComfyUI."""
+    """Calculate an H3 canvas from presets."""
 
     DESCRIPTION = (
-        "Preset canvas calculator for common aspect ratios and H3 image-size profiles. Source-image ratio fails early "
-        "with an actionable error when no image is connected."
+        "Calculates an H3 canvas from an aspect ratio and resolution profile."
     )
 
     @classmethod
@@ -611,11 +605,10 @@ class H3ImageResolutionPreset:
 
 
 class H3ImagePrepare:
-    """Prepare MiniMax H3 conditioning and AV latent for still-image extraction."""
+    """Prepare H3 conditioning and its audio-video latent."""
 
     DESCRIPTION = (
-        "Advanced combined T2I/I2I/REF2VA preparation node. The VAE is optional for text-to-image but required for "
-        "image-to-image and reference editing. The full requested 5-, 9-, 13-, or 20-frame temporal profile is preserved for final selection."
+        "Prepares T2I, I2I, or REF2VA conditioning. I2I and REF2VA require a VAE and source image."
     )
 
     @classmethod
@@ -878,11 +871,10 @@ class H3ImagePrepare:
 
 
 class H3TextToImagePrepare:
-    """Image-first T2I conditioning with H3's temporal packet hidden behind quality profiles."""
+    """Prepare FL2VA text-to-image conditioning."""
 
     DESCRIPTION = (
-        "Prepares FL2VA text-to-image conditioning and a short H3 temporal packet for still generation. No VAE is "
-        "required at this preparation stage; decode still requires the H3 video VAE downstream."
+        "Prepares FL2VA text conditioning and an H3 latent. Decoding requires the H3 video VAE."
     )
 
     @classmethod
@@ -976,11 +968,10 @@ class H3TextToImagePrepare:
 
 
 class H3ImageToImagePrepare:
-    """FL2VA source-anchor workflow presented as image-to-image."""
+    """Prepare FL2VA image-to-image conditioning."""
 
     DESCRIPTION = (
-        "Prepares FL2VA image-to-image conditioning with the source encoded as frame-0 anchor. Source Fidelity changes "
-        "preservation language only; it is not a denoise slider."
+        "Encodes the source at frame 0 and prepares FL2VA editing. Source Fidelity changes prompt text, not denoise."
     )
 
     @classmethod
@@ -1097,11 +1088,10 @@ class H3ImageToImagePrepare:
 
 
 class H3ReferenceEditPrepare:
-    """REF2VA reference-guided regeneration exposed as an image edit node."""
+    """Prepare REF2VA reference-edit conditioning."""
 
     DESCRIPTION = (
-        "Prepares REF2VA reference-guided image editing with up to nine ordered references. Source Fidelity changes "
-        "preservation language only; it is not a denoise slider."
+        "Prepares REF2VA editing with up to nine ordered references. Source Fidelity changes prompt text, not denoise."
     )
 
     @classmethod
@@ -1254,12 +1244,10 @@ class H3ReferenceEditPrepare:
 
 
 class H3ImageDecode:
-    """Decode the H3 video stream and preserve the selected temporal profile."""
+    """Decode the requested H3 frame profile."""
 
     DESCRIPTION = (
-        "Decodes the H3 video latent, crops natural packet surplus independently for every batch item, and preserves "
-        "the complete requested 5-, 9-, 13-, or 20-frame profile for Single Image Output. In 20-frame FL2VA I2I, the preferred "
-        "stable-edit index is measured independently for each batch item."
+        "Decodes the requested frame profile and returns the recommended still index."
     )
 
     @classmethod
@@ -1363,11 +1351,10 @@ class H3ImageDecode:
 
 
 class H3ImageFrameSelector:
-    """Select one still or expose the complete decoded H3 frame batch."""
+    """Select one decoded frame or return the full batch."""
 
     DESCRIPTION = (
-        "Selects the mode-aware recommendation from Exact Frame Decode by default, or scores a decoded H3 image "
-        "batch with optional quality/similarity strategies. Enable emit_candidate_batch to expose every frame."
+        "Selects a decoded frame by index or score. Enable emit_candidate_batch to return every frame."
     )
 
     @classmethod
@@ -1733,11 +1720,10 @@ class H3ImageFrameSelector:
 
 
 class H3SamplingSettings:
-    """Combined H3 sampler, scheduler and sigma-shift selector."""
+    """Configure H3 sampling and sigma shifts."""
 
     DESCRIPTION = (
-        "Advanced H3 sampler/scheduler controls. Denoise follows ComfyUI BasicScheduler semantics for every scheduler, "
-        "including beta_custom: values below 1 use the tail of a longer schedule and 0 returns empty sigmas."
+        "Configures the sampler, scheduler, denoise value, and H3 video/audio sigma shifts."
     )
 
     @classmethod
@@ -1923,11 +1909,10 @@ class H3SamplingSettings:
 
 
 class H3ImageSamplingPreset:
-    """Small, safe image-mode sampling UI built from official H3 settings."""
+    """Apply an H3 image sampling preset."""
 
     DESCRIPTION = (
-        "Applies explicit H3 image recipes: base RES Multistep profiles and the published LightX v0.1 "
-        "four-step ER-SDE / SA-Solver profiles. The LoRA itself must be loaded upstream."
+        "Applies a base or LightX v0.1 sampling profile. Load the LightX LoRA upstream."
     )
 
     @classmethod
@@ -1979,11 +1964,10 @@ class H3ImageSamplingPreset:
 
 
 class H3WorkflowNote:
-    """Non-executing documentation card used by the bundled UI workflows."""
+    """Display a note in a saved workflow."""
 
     DESCRIPTION = (
-        "A multiline documentation card for Image Studio workflows. It has no outputs and does not participate in "
-        "generation; edit or delete it freely."
+        "Displays text without affecting generation. Kept for compatibility with v15 workflows."
     )
 
     @classmethod

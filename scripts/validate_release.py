@@ -190,8 +190,10 @@ def validate_ui(repo: Path, slug: str, prompt: dict) -> dict:
     nodes = workflow.get("nodes")
     links = workflow.get("links")
     assert isinstance(nodes, list) and isinstance(links, list)
-    assert len(nodes) == len(prompt) + 4, f"{path}: expected four documentation cards"
-    assert sum(node.get("type") == "H3WorkflowNote" for node in nodes) == 4
+    assert len(nodes) == len(prompt), f"{path}: UI and API node counts differ"
+    assert all(node.get("type") != "H3WorkflowNote" for node in nodes), (
+        f"{path}: bundled workflows must not depend on documentation nodes"
+    )
     assert len({node["id"] for node in nodes}) == len(nodes), f"{path}: duplicate node ids"
 
     node_ids = {node["id"] for node in nodes}

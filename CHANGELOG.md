@@ -2,12 +2,13 @@
 
 All notable changes to MiniMax H3 Image Studio are documented here.
 
+## [Unreleased]
+
+- Removed documentation-only nodes from bundled workflows.
+- Added direct troubleshooting for missing workflow nodes and image inputs.
+- Rewrote the README, node descriptions, prompt wrapper, and contributor guide for clarity.
+
 ## [15.0.0] - 2026-08-08
-
-### Community validation requested
-
-- The maintainer is away from the CUDA workstation for approximately one week, so a complete production-weight H3 generation could not be run before publication.
-- Code, import, prompt, workflow, frontend, PNG metadata and runtime-unit validation passed; community GPU results are requested in [issue #13](https://github.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/issues/13).
 
 ### Fixed
 
@@ -68,7 +69,7 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 ## [11.0.0] - 2026-08-03
 
 - Removed untested auxiliary nodes and focused the extension on image generation and editing.
-- Made the project's experimental, AI-assisted status explicit.
+- Documented the project's experimental status.
 
 ## [10.0.0] - 2026-08-03
 

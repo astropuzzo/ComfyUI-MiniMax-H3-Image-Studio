@@ -36,8 +36,8 @@ jobs:
           - version: "12.0.0"
             commit: "b902a1dcfef18dd3f0d72fbb394b0ae414c5be80"
             changelog: >-
-              Added measured performance and quality guidance for practical H3
-              still-image generation.
+              Added measured performance and quality guidance for H3 still-image
+              generation.
           - version: "13.0.0"
             commit: "18b2199bc8569f0177b4bbf0cb377ae70bae3aac"
             changelog: >-

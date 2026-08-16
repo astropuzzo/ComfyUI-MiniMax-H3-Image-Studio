@@ -1,18 +1,16 @@
 # Example workflows
 
-The v15 examples are intentionally separated by format:
+- `ui/`: canvas workflow JSON
+- `png/`: workflow preview with embedded UI and API metadata
+- `api/`: prompt JSON for API clients
 
-- `ui/` — normal ComfyUI workflow JSON. Open or drag these into the canvas.
-- `png/` — rendered workflow previews containing both `workflow` and `prompt` metadata. Drag them into ComfyUI exactly like a workflow image.
-- `api/` — prompt-only JSON for API clients. These are not canvas-layout files.
+Open files from `ui/` or `png/` in ComfyUI. Files from `api/` do not contain a canvas layout.
 
-Every UI workflow includes four editable `MiniMax H3 Image • Workflow Note` cards explaining quick start, model paths, setting choices and optional/experimental additions.
-
-| Stem | Purpose |
+| File stem | Workflow |
 |---|---|
-| `H3_T2I` | Base FL2VA text-to-image. |
-| `H3_I2I` | Base FL2VA source-anchor image editing. |
-| `H3_REFERENCE_EDIT` | REF2VA ordered reference editing. |
-| `H3_I2I_LIGHTX_TURBO` | Kijai/LightX v0.1 four-step I2I recipe. |
+| `H3_T2I` | FL2VA text-to-image |
+| `H3_I2I` | FL2VA image-to-image |
+| `H3_REFERENCE_EDIT` | REF2VA reference editing |
+| `H3_I2I_LIGHTX_TURBO` | FL2VA image-to-image with LightX v0.1 |
 
-If dragging a file shows an empty canvas, check its directory: use `ui/` or `png/`, not `api/`.
+Image-to-image and reference-edit workflows require an image in every `Load Image` node.

@@ -1,7 +1,7 @@
 {
   "id": "00000000-0000-0000-0000-000000000000",
   "revision": 0,
-  "last_node_id": 903,
+  "last_node_id": 13,
   "last_link_id": 32,
   "nodes": [
     {
@@ -271,7 +271,7 @@
         264
       ],
       "flags": {},
-      "order": 10,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
@@ -431,7 +431,7 @@
         46
       ],
       "flags": {},
-      "order": 11,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
@@ -473,7 +473,7 @@
         118
       ],
       "flags": {},
-      "order": 9,
+      "order": 5,
       "mode": 0,
       "inputs": [
         {
@@ -546,7 +546,7 @@
         106
       ],
       "flags": {},
-      "order": 12,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -612,7 +612,7 @@
         86
       ],
       "flags": {},
-      "order": 13,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -677,7 +677,7 @@
         306
       ],
       "flags": {},
-      "order": 14,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -837,7 +837,7 @@
         58
       ],
       "flags": {},
-      "order": 15,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -868,194 +868,6 @@
       "widgets_values": [
         "MiniMax_H3_Image"
       ]
-    },
-    {
-      "id": 900,
-      "type": "H3WorkflowNote",
-      "pos": [
-        0,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 5,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "START HERE · Text to Image",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "quick start",
-        "1. Check the three loader filenames.\n2. Edit the prompt in Text to Image.\n3. Choose resolution and frame profile.\n4. Queue Prompt.\n\nThe saved result is one still; the temporal packet is internal context."
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
-    },
-    {
-      "id": 901,
-      "type": "H3WorkflowNote",
-      "pos": [
-        850,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "MODELS & FOLDERS",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "models",
-        "MODEL LOCATIONS\n\ndiffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors (FL2VA)\ntext_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors\nvae/minimax_h3_video_vae_fp16.safetensors"
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
-    },
-    {
-      "id": 902,
-      "type": "H3WorkflowNote",
-      "pos": [
-        1700,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "WHY THESE SETTINGS",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "settings",
-        "Base speed uses RES Multistep + simple at 12 steps. For maximum base quality choose the 20-step profile. Exact Frame Decode emits every requested frame; Single Image Output receives the decoder's recommended index and defaults to frame 0 for T2I."
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
-    },
-    {
-      "id": 903,
-      "type": "H3WorkflowNote",
-      "pos": [
-        2550,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "OPTIONAL / EXPERIMENTAL",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "optional / experimental",
-        "LightX and Larry Turbo adapters use different recipes. Do not reuse a generic Turbo preset. For LightX v0.1 open the dedicated workflow. KJNodes memory-efficient attention and Tiny VAE preview are optional; neither is required here."
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
     }
   ],
   "links": [
@@ -1195,7 +1007,7 @@
       "scale": 0.8396739130434783,
       "offset": [
         65.50161812297735,
-        65.50161812297735
+        -364.49838187702267
       ]
     },
     "image_studio": {
