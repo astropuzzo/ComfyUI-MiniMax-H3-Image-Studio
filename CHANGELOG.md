@@ -5,7 +5,7 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 ## [Unreleased]
 
 - Removed documentation-only nodes from bundled workflows.
-- Added direct troubleshooting for missing workflow nodes and image inputs.
+- Added direct troubleshooting for stale node definitions, missing workflow nodes, and image inputs.
 - Rewrote the README, node descriptions, prompt wrapper, and contributor guide for clarity.
 
 ## [15.0.0] - 2026-08-08

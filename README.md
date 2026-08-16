@@ -131,6 +131,18 @@ Larger images and longer frame profiles increase VRAM, RAM, and runtime. H3-Base
 
 This node was added in v15. Update MiniMax H3 Image Studio, restart ComfyUI, and refresh the browser. Current bundled workflows no longer depend on documentation-note nodes.
 
+### A sampling profile or selector strategy is not in the list
+
+Errors mentioning `base quality | RES 20 steps` or `decode_recommended` mean that a v15 workflow reached an older backend. Updating files without restarting ComfyUI does not replace the node definitions already loaded in memory.
+
+1. Update MiniMax H3 Image Studio.
+2. Stop every running ComfyUI process.
+3. Start ComfyUI again.
+4. Reload the browser page.
+5. Reopen the workflow from `examples/ui/` or `examples/png/`.
+
+Do not repair this by changing only the two rejected values. The v15 decoder also adds the `recommended_index` output used by the workflow.
+
 ### `Load Image - image` is missing
 
 Select an input file in each `Load Image` node. This is required for image-to-image and reference editing.

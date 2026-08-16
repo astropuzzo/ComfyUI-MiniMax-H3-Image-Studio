@@ -6,6 +6,8 @@
 
 Open files from `ui/` or `png/` in ComfyUI. Files from `api/` do not contain a canvas layout.
 
+These workflows require MiniMax H3 Image Studio v15 or newer. Restart ComfyUI and reopen the workflow after updating the node package.
+
 | File stem | Workflow |
 |---|---|
 | `H3_T2I` | FL2VA text-to-image |
