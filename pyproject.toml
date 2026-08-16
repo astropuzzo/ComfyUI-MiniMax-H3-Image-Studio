@@ -1,6 +1,6 @@
 [project]
 name = "minimax-h3-image-studio"
-version = "15.0.0"
+version = "15.0.1"
 description = "ComfyUI nodes and workflows for MiniMax H3 image generation and editing."
 readme = "README.md"
 license = { file = "LICENSE" }

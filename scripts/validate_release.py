@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import struct
 import sys
 import tomllib
@@ -113,15 +114,19 @@ def validate_node_documentation(repo: Path) -> None:
                 assert isinstance(tooltip, str) and tooltip.strip(), f"{class_node.name}.{input_name}: empty input tooltip"
 
 
-def validate_metadata(repo: Path) -> None:
+def validate_metadata(repo: Path) -> str:
     with (repo / "pyproject.toml").open("rb") as handle:
         metadata = tomllib.load(handle)
-    assert metadata["project"]["version"] == "15.0.0"
+    version = metadata["project"]["version"]
+    assert re.fullmatch(r"\d+\.\d+\.\d+", version), f"invalid project version: {version}"
+    changelog = (repo / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert f"## [{version}]" in changelog, f"CHANGELOG.md: missing release {version}"
     comfy = metadata["tool"]["comfy"]
     assert comfy["PublisherId"] == "astropuzzo"
     assert comfy["requires-comfyui"] == ">=0.30.0"
     assert comfy["Icon"].endswith("/assets/branding/minimax-h3-image-studio.svg")
     assert comfy["Banner"].endswith("/assets/branding/minimax-h3-banner.svg")
+    return f"v{version}"
 
 
 def validate_registry_assets(repo: Path) -> None:
@@ -183,7 +188,7 @@ def validate_api(repo: Path, slug: str) -> dict:
     return prompt
 
 
-def validate_ui(repo: Path, slug: str, prompt: dict) -> dict:
+def validate_ui(repo: Path, slug: str, prompt: dict, release: str) -> dict:
     path = repo / "examples" / "ui" / f"{slug}.json"
     workflow = load_json(path)
     assert workflow.get("version") == 0.4, f"{path}: expected workflow schema 0.4"
@@ -211,7 +216,7 @@ def validate_ui(repo: Path, slug: str, prompt: dict) -> dict:
     assert any(link[1] == decode["id"] and link[2] == 3 and link[3] == selector["id"] for link in links), (
         f"{path}: decoder recommendation is not connected"
     )
-    assert workflow.get("extra", {}).get("image_studio", {}).get("release") == "v15.0.0"
+    assert workflow.get("extra", {}).get("image_studio", {}).get("release") == release
     return workflow
 
 
@@ -248,24 +253,24 @@ def read_png(path: Path) -> tuple[int, int, dict[str, str]]:
     return width, height, text
 
 
-def validate_png(repo: Path, slug: str, prompt: dict, workflow: dict) -> None:
+def validate_png(repo: Path, slug: str, prompt: dict, workflow: dict, release: str) -> None:
     path = repo / "examples" / "png" / f"{slug}.png"
     width, height, text = read_png(path)
     assert width >= 2400 and height >= 1300, f"{path}: preview is too small"
     assert json.loads(text["prompt"]) == prompt, f"{path}: embedded API prompt differs"
     assert json.loads(text["workflow"]) == workflow, f"{path}: embedded UI workflow differs"
-    assert text.get("Image Studio release") == "v15.0.0"
+    assert text.get("Image Studio release") == release
 
 
 def validate_repo(repo: Path) -> None:
     validate_python(repo)
     validate_node_documentation(repo)
-    validate_metadata(repo)
+    release = validate_metadata(repo)
     validate_registry_assets(repo)
     for slug in SLUGS:
         prompt = validate_api(repo, slug)
-        workflow = validate_ui(repo, slug, prompt)
-        validate_png(repo, slug, prompt, workflow)
+        workflow = validate_ui(repo, slug, prompt, release)
+        validate_png(repo, slug, prompt, workflow, release)
 
 
 def main() -> None:

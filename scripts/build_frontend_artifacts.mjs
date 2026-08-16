@@ -13,6 +13,11 @@ const chromiumPath = process.env.CHROMIUM_PATH;
 const playwrightModule = process.env.PLAYWRIGHT_MODULE ?? "playwright";
 const viewport = { width: 3200, height: 1800 };
 
+const projectMetadata = await readFile(path.join(repoDir, "pyproject.toml"), "utf8");
+const versionMatch = projectMetadata.match(/^version\s*=\s*"([^"]+)"/m);
+if (!versionMatch) throw new Error("Could not read the project version from pyproject.toml.");
+const release = `v${versionMatch[1]}`;
+
 if (!chromiumPath) throw new Error("Set CHROMIUM_PATH to a Chromium/Chrome executable.");
 const { chromium } = require(playwrightModule);
 
@@ -108,7 +113,7 @@ for (const spec of workflowSpecs) {
   const apiPath = path.join(repoDir, "examples", "api", spec.api);
   const api = JSON.parse(await readFile(apiPath, "utf8"));
 
-  const workflow = await page.evaluate(async ({ prompt, positions, slug }) => {
+  const workflow = await page.evaluate(async ({ prompt, positions, slug, release }) => {
     const { app } = await import("/scripts/app.js");
     app.loadApiJson(prompt, slug);
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -140,9 +145,9 @@ for (const spec of workflowSpecs) {
     const serialized = app.rootGraph.serialize();
     serialized.extra ??= {};
     serialized.extra.ds = { scale, offset: [...app.canvas.ds.offset] };
-    serialized.extra.image_studio = { release: "v15.0.0", source_api: `examples/api/${slug}_API.json` };
+    serialized.extra.image_studio = { release, source_api: `examples/api/${slug}_API.json` };
     return serialized;
-  }, { prompt: api, positions: basePositions, slug: spec.slug });
+  }, { prompt: api, positions: basePositions, slug: spec.slug, release });
 
   const expectedNodeCount = Object.keys(api).length;
   if (workflow.nodes.length !== expectedNodeCount) {

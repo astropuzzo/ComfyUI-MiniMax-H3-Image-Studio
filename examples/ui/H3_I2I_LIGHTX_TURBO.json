@@ -1209,7 +1209,7 @@
       ]
     },
     "image_studio": {
-      "release": "v15.0.0",
+      "release": "v15.0.1",
       "source_api": "examples/api/H3_I2I_LIGHTX_TURBO_API.json"
     }
   },

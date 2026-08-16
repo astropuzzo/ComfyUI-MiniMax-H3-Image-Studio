@@ -1275,7 +1275,7 @@
       ]
     },
     "image_studio": {
-      "release": "v15.0.0",
+      "release": "v15.0.1",
       "source_api": "examples/api/H3_REFERENCE_EDIT_API.json"
     }
   },

@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import tempfile
+import tomllib
 from pathlib import Path
 
 from PIL import Image, PngImagePlugin
@@ -25,6 +26,11 @@ def compact_json(path: Path) -> str:
         return json.dumps(json.load(handle), separators=(",", ":"), ensure_ascii=False)
 
 
+def project_release(repo_dir: Path) -> str:
+    with (repo_dir / "pyproject.toml").open("rb") as handle:
+        return f"v{tomllib.load(handle)['project']['version']}"
+
+
 def embed(repo_dir: Path, slug: str) -> None:
     ui_path = repo_dir / "examples" / "ui" / f"{slug}.json"
     api_path = repo_dir / "examples" / "api" / f"{slug}_API.json"
@@ -33,7 +39,7 @@ def embed(repo_dir: Path, slug: str) -> None:
     metadata = PngImagePlugin.PngInfo()
     metadata.add_text("workflow", compact_json(ui_path))
     metadata.add_text("prompt", compact_json(api_path))
-    metadata.add_text("Image Studio release", "v15.0.0")
+    metadata.add_text("Image Studio release", project_release(repo_dir))
 
     with Image.open(png_path) as source:
         image = source.copy()

@@ -20,7 +20,7 @@ body:
     attributes:
       label: Environment
       description: Include Image Studio release, OS, ComfyUI, Python, PyTorch, GPU, VRAM, and system RAM.
-      placeholder: Image Studio v15.0.0; Windows 11; ComfyUI ...; RTX ...; VRAM ...; RAM ...
+      placeholder: Image Studio x.y.z; Windows 11; ComfyUI ...; RTX ...; VRAM ...; RAM ...
     validations:
       required: true
   - type: textarea
