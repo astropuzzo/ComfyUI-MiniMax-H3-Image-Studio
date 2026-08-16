@@ -72,8 +72,9 @@ RESOLUTION_PROFILES: Dict[str, Optional[float]] = {
 SAMPLING_PROFILES: Dict[str, Tuple[str, str, int, float, float]] = {
     "base quality | RES 20 steps": ("res_multistep", "simple", 20, 12.0, 3.0),
     "base speed | RES 12 steps": ("res_multistep", "simple", 12, 12.0, 3.0),
-    "LightX v0.1 | ER-SDE 4 steps": ("er_sde", "simple", 4, 12.0, 3.0),
-    "LightX v0.1 | SA-Solver 4 steps": ("sa_solver", "simple", 4, 12.0, 3.0),
+    "Turbo v1.0 | 8 steps": ("euler", "simple", 8, 12.0, 3.0),
+    "Turbo v1.0 768p | 4 steps": ("euler", "simple", 4, 6.0, 3.0),
+    "REF2VA Turbo v0.1 | 4 steps": ("euler", "simple", 4, 12.0, 3.0),
 }
 
 # Exact v14 strings and settings remain at the bottom of the combo so older
@@ -82,6 +83,8 @@ SAMPLING_PROFILES: Dict[str, Tuple[str, str, int, float, float]] = {
 LEGACY_SAMPLING_PROFILES: Dict[str, Tuple[str, str, int, float, float]] = {
     "quality | 20 steps": SAMPLING_PROFILES["base quality | RES 20 steps"],
     "speed | 12 steps": SAMPLING_PROFILES["base speed | RES 12 steps"],
+    "LightX v0.1 | ER-SDE 4 steps": ("er_sde", "simple", 4, 12.0, 3.0),
+    "LightX v0.1 | SA-Solver 4 steps": ("sa_solver", "simple", 4, 12.0, 3.0),
     "turbo | 8 steps (LoRA)": ("res_multistep", "simple", 8, 12.0, 4.0),
     "turbo | 4 steps (LoRA, experimental)": ("res_multistep", "simple", 4, 12.0, 4.0),
 }
@@ -244,6 +247,53 @@ def _first_stable_edit_frame(images: torch.Tensor, max_side: int = 256) -> Tuple
             return index, float(change[index].item())
     index = int(torch.argmax(change[1:]).item()) + 1
     return index, float(change[index].item())
+
+
+def _stable_quality_frame(images: torch.Tensor, max_side: int = 256) -> Tuple[int, float]:
+    """Choose a sharp, clean frame that is also stable against its neighbors."""
+    if images.ndim != 4 or images.shape[0] <= 1:
+        return 0, 1.0
+
+    x = images[..., :3].movedim(-1, 1).float()
+    height, width = x.shape[-2:]
+    scale = min(1.0, max_side / max(height, width))
+    if scale < 1.0:
+        x = F.interpolate(
+            x,
+            size=(max(16, round(height * scale)), max(16, round(width * scale))),
+            mode="bilinear",
+            align_corners=False,
+            antialias=True,
+        )
+    x = x.clamp(0.0, 1.0)
+
+    def minmax(values: torch.Tensor) -> torch.Tensor:
+        spread = values.max() - values.min()
+        if float(spread.abs()) < 1e-8:
+            return torch.ones_like(values)
+        return (values - values.min()) / spread
+
+    gray = 0.2126 * x[:, 0:1] + 0.7152 * x[:, 1:2] + 0.0722 * x[:, 2:3]
+    lap_kernel = torch.tensor(
+        [[0.0, 1.0, 0.0], [1.0, -4.0, 1.0], [0.0, 1.0, 0.0]],
+        device=x.device,
+        dtype=x.dtype,
+    ).view(1, 1, 3, 3)
+    sharpness = torch.log1p(F.conv2d(gray, lap_kernel, padding=1).var(dim=(1, 2, 3)) * 1000.0)
+    contrast = gray.std(dim=(1, 2, 3))
+    clipped = ((x < 0.01) | (x > 0.99)).float().mean(dim=(1, 2, 3))
+    exposure = (1.0 - clipped * 3.0).clamp(0.0, 1.0)
+    quality = 0.70 * minmax(sharpness) + 0.20 * minmax(contrast) + 0.10 * exposure
+
+    temporal_delta = torch.empty(x.shape[0], device=x.device, dtype=x.dtype)
+    temporal_delta[0] = (x[0] - x[1]).abs().mean()
+    temporal_delta[-1] = (x[-1] - x[-2]).abs().mean()
+    if x.shape[0] > 2:
+        temporal_delta[1:-1] = 0.5 * (x[1:-1] - x[:-2]).abs().mean(dim=(1, 2, 3))
+        temporal_delta[1:-1] += 0.5 * (x[1:-1] - x[2:]).abs().mean(dim=(1, 2, 3))
+    scores = 0.80 * quality + 0.20 * (1.0 - minmax(temporal_delta))
+    index = int(torch.argmax(scores).item())
+    return index, float(scores[index].item())
 
 
 def _empty_h3_av_latent(
@@ -764,9 +814,11 @@ class H3ImagePrepare:
         # Preserve the complete selected temporal profile. Single Image Output
         # decides whether to expose one still or every generated candidate.
         output_frames = internal_frames
-        dynamic_edit_selection = mode == "image_to_image (FL2VA)" and internal_frames == 20
         output_frame_index = 0
-        output_strategy = "first_stable_edit" if dynamic_edit_selection else "fixed"
+        if mode == "image_to_image (FL2VA)" and internal_frames > 1:
+            output_strategy = "first_stable_edit"
+        else:
+            output_strategy = "stable_quality"
         latent, requested_frames, natural_frames = _empty_h3_av_latent(
             width,
             height,
@@ -845,7 +897,7 @@ class H3ImagePrepare:
             })
             checkpoint_note = (
                 f"Use a REF2VA checkpoint; {len(references)} ordered reference image(s) encoded "
-                f"as {', '.join(reference_sizes)} and exposed as <Picture 1> through <Picture {len(references)}>。"
+                f"as {', '.join(reference_sizes)} and exposed as <Picture 1> through <Picture {len(references)}>."
             )
 
         if natural_frames > 362:
@@ -1312,17 +1364,19 @@ class H3ImageDecode:
         kept = batched[:, :kept_frames]
 
         preferred_indices = []
-        change_scores = []
+        recommendation_scores = []
         fixed_index = max(0, int(samples.get("h3_output_frame_index", 0)))
         for batch_index in range(batch_size):
             item = kept[batch_index]
             if output_strategy == "first_stable_edit":
-                preferred_index, change_score = _first_stable_edit_frame(item)
+                preferred_index, recommendation_score = _first_stable_edit_frame(item)
+            elif output_strategy == "stable_quality":
+                preferred_index, recommendation_score = _stable_quality_frame(item)
             else:
-                preferred_index, change_score = fixed_index, 0.0
+                preferred_index, recommendation_score = fixed_index, 1.0
             preferred_index = min(max(0, int(preferred_index)), kept_frames - 1)
             preferred_indices.append(preferred_index)
-            change_scores.append(float(change_score))
+            recommendation_scores.append(float(recommendation_score))
 
         # Standard ComfyUI IMAGE is [N,H,W,C], so flatten batch-major after each
         # batch item has been cropped independently. Clone only when cropping or
@@ -1339,7 +1393,7 @@ class H3ImageDecode:
             )
 
         preferred_text = ", ".join(
-            f"b{index}:frame {preferred_indices[index]} (change {change_scores[index]:.4f})"
+            f"b{index}:frame {preferred_indices[index]} (score {recommendation_scores[index]:.4f})"
             for index in range(batch_size)
         )
         info = (
@@ -1912,7 +1966,7 @@ class H3ImageSamplingPreset:
     """Apply an H3 image sampling preset."""
 
     DESCRIPTION = (
-        "Applies a base or LightX v0.1 sampling profile. Load the LightX LoRA upstream."
+        "Applies an official base or distilled MiniMax H3 sampling profile. Load the matching Turbo adapter upstream."
     )
 
     @classmethod
@@ -1925,8 +1979,8 @@ class H3ImageSamplingPreset:
                     {
                         "default": "base quality | RES 20 steps",
                         "tooltip": (
-                            "Base profiles use RES Multistep. LightX v0.1 profiles reproduce Kijai's published "
-                            "four-step ER-SDE or SA-Solver recipe and expect the matching LightX LoRA upstream."
+                            "Base profiles use RES Multistep. Turbo profiles use the official Euler/simple recipe and "
+                            "must be paired with the exact FL2VA 8-step, FL2VA 768p 4-step, or REF2VA 4-step adapter."
                         ),
                     },
                 ),
@@ -1937,7 +1991,7 @@ class H3ImageSamplingPreset:
     RETURN_NAMES = ("model", "sampler", "sigmas", "sampling_info")
     OUTPUT_TOOLTIPS = (
         "Cloned model patched with the selected H3 recipe's video/audio shifts.",
-        "Sampler required by the selected base or LightX v0.1 recipe.",
+        "Sampler required by the selected base or Turbo recipe.",
         "Complete sigma schedule for the selected recipe.",
         "Resolved profile, sampler, scheduler, step count, shifts and AV sampling backend.",
     )

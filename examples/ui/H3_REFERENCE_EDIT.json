@@ -307,7 +307,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v15",
+        "Image Studio": "v16",
         "Node name for S&R": "H3ImageResolutionPreset"
       },
       "widgets_values": [
@@ -526,7 +526,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v15",
+        "Image Studio": "v16",
         "Node name for S&R": "H3ReferenceEditPrepare"
       },
       "widgets_values": [
@@ -691,7 +691,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v15",
+        "Image Studio": "v16",
         "Node name for S&R": "H3ImageSamplingPreset"
       },
       "widgets_values": [
@@ -825,7 +825,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v15",
+        "Image Studio": "v16",
         "Node name for S&R": "H3ImageDecode"
       },
       "color": "#25534d",
@@ -975,7 +975,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v15",
+        "Image Studio": "v16",
         "Node name for S&R": "H3ImageFrameSelector"
       },
       "widgets_values": [
@@ -1275,7 +1275,7 @@
       ]
     },
     "image_studio": {
-      "release": "v15.0.1",
+      "release": "v16.0.0",
       "source_api": "examples/api/H3_REFERENCE_EDIT_API.json"
     }
   },

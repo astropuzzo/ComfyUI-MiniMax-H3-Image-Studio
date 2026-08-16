@@ -4,6 +4,16 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 
 ## [Unreleased]
 
+## [16.0.0] - 2026-08-17
+
+- Replaced the bundled experimental LightX v0.1 recipe with the official FL2VA Turbo v1.0 eight-step adapter and Euler schedule.
+- Renamed the bundled Turbo workflow files to `H3_I2I_TURBO`.
+- Added official FL2VA 768p four-step and REF2VA four-step sampling profiles.
+- Kept the former LightX profile names as legacy inputs so saved workflows still import.
+- Fixed short image-to-image packets selecting the unchanged source anchor as their default output.
+- Added stable-quality recommendations for text-to-image and reference-edit packets.
+- Documented current official model variants, SageAttention, native resolution, and experimental model limits.
+
 ## [15.0.1] - 2026-08-17
 
 - Removed documentation-only nodes from bundled workflows.

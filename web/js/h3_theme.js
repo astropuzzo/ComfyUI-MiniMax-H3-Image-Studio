@@ -28,7 +28,7 @@ app.registerExtension({
     node.color = palette.color;
     node.bgcolor = palette.bgcolor;
     node.properties ??= {};
-    node.properties["Image Studio"] = "v15";
+    node.properties["Image Studio"] = "v16";
 
     const [width, height] = node.size ?? [0, 0];
     const minWidth = nodeType.includes("WorkflowNote") ? 520 : 360;

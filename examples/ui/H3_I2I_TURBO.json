@@ -307,7 +307,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v15",
+        "Image Studio": "v16",
         "Node name for S&R": "H3ImageResolutionPreset"
       },
       "widgets_values": [
@@ -461,7 +461,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v15",
+        "Image Studio": "v16",
         "Node name for S&R": "H3ImageToImagePrepare"
       },
       "widgets_values": [
@@ -625,11 +625,11 @@
         }
       ],
       "properties": {
-        "Image Studio": "v15",
+        "Image Studio": "v16",
         "Node name for S&R": "H3ImageSamplingPreset"
       },
       "widgets_values": [
-        "LightX v0.1 | ER-SDE 4 steps"
+        "Turbo v1.0 | 8 steps"
       ],
       "color": "#5a3424",
       "bgcolor": "#2c1810"
@@ -759,7 +759,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v15",
+        "Image Studio": "v16",
         "Node name for S&R": "H3ImageDecode"
       },
       "color": "#25534d",
@@ -909,7 +909,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v15",
+        "Image Studio": "v16",
         "Node name for S&R": "H3ImageFrameSelector"
       },
       "widgets_values": [
@@ -966,7 +966,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "MiniMax_H3_LightX_Image"
+        "MiniMax_H3_Turbo_v1_Image"
       ]
     },
     {
@@ -1023,8 +1023,8 @@
         "Node name for S&R": "LoraLoaderModelOnly"
       },
       "widgets_values": [
-        "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
-        0.75
+        "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+        1
       ]
     }
   ],
@@ -1209,8 +1209,8 @@
       ]
     },
     "image_studio": {
-      "release": "v15.0.1",
-      "source_api": "examples/api/H3_I2I_LIGHTX_TURBO_API.json"
+      "release": "v16.0.0",
+      "source_api": "examples/api/H3_I2I_TURBO_API.json"
     }
   },
   "version": 0.4

@@ -12,16 +12,16 @@ MiniMax H3 is an audio-video model. These nodes generate a short frame packet, d
 - MiniMax H3 diffusion model
 - MiniMax H3 Qwen text encoder
 - MiniMax H3 video VAE
-- LightX v0.1 LoRA only for the LightX workflow
+- Matching Turbo adapter only for a Turbo workflow
 
 Use the [official ComfyUI MiniMax H3 guide](https://docs.comfy.org/tutorials/video/minimax/minimax-h3) for model downloads and installation.
 
-| Model | Folder |
+| Recommended official model | Folder |
 |---|---|
-| FL2VA or REF2VA diffusion model | `ComfyUI/models/diffusion_models/` |
-| Qwen text encoder | `ComfyUI/models/text_encoders/` |
-| H3 video VAE | `ComfyUI/models/vae/` |
-| LightX v0.1 LoRA | `ComfyUI/models/loras/` |
+| `minimax_h3_fl2va_pruned_int8_convrot.safetensors` or `minimax_h3_ref2va_pruned_int8_convrot.safetensors` | `ComfyUI/models/diffusion_models/` |
+| `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `ComfyUI/models/text_encoders/` |
+| `minimax_h3_video_vae_fp16.safetensors` | `ComfyUI/models/vae/` |
+| Exact Turbo adapter named in the sampling table | `ComfyUI/models/loras/` |
 
 The audio VAE is not required for image output.
 
@@ -59,7 +59,7 @@ Open a file from `examples/ui/`, or drag a file from `examples/png/` onto the ca
 | Text to Image | [Open](examples/ui/H3_T2I.json) | [Open](examples/png/H3_T2I.png) | [API](examples/api/H3_T2I_API.json) |
 | Image to Image | [Open](examples/ui/H3_I2I.json) | [Open](examples/png/H3_I2I.png) | [API](examples/api/H3_I2I_API.json) |
 | Reference Edit | [Open](examples/ui/H3_REFERENCE_EDIT.json) | [Open](examples/png/H3_REFERENCE_EDIT.png) | [API](examples/api/H3_REFERENCE_EDIT_API.json) |
-| Image to Image, LightX v0.1 | [Open](examples/ui/H3_I2I_LIGHTX_TURBO.json) | [Open](examples/png/H3_I2I_LIGHTX_TURBO.png) | [API](examples/api/H3_I2I_LIGHTX_TURBO_API.json) |
+| Image to Image, Turbo v1.0 | [Open](examples/ui/H3_I2I_TURBO.json) | [Open](examples/png/H3_I2I_TURBO.png) | [API](examples/api/H3_I2I_TURBO_API.json) |
 
 Files in `examples/api/` are prompt JSON for API clients. They do not contain a canvas layout.
 
@@ -73,7 +73,7 @@ For image-to-image and reference-edit workflows, select an image in every `Load 
 | `Image to Image` | Prepares FL2VA editing with the source image at frame 0. |
 | `Reference Edit` | Prepares REF2VA editing with up to nine ordered references. |
 | `Resolution Preset` | Calculates common H3 canvas sizes. |
-| `Sampling Preset` | Configures base or LightX v0.1 sampling. |
+| `Sampling Preset` | Configures base or official Turbo sampling. |
 | `Exact Frame Decode` | Decodes the requested frame profile. |
 | `Single Image Output` | Selects one frame or returns the decoded batch. |
 | `Advanced Resolution` | Calculates custom canvas sizes. |
@@ -101,12 +101,19 @@ H3 processes multiple frames even when the output is one image.
 |---|---|---|---:|---:|
 | Base quality | `res_multistep` | `simple` | 20 | 12/3 |
 | Base speed | `res_multistep` | `simple` | 12 | 12/3 |
-| LightX v0.1 ER-SDE | `er_sde` | `simple` | 4 | 12/3 |
-| LightX v0.1 SA-Solver | `sa_solver` | `simple` | 4 | 12/3 |
+| FL2VA Turbo v1.0 | `euler` | `simple` | 8 | 12/3 |
+| FL2VA Turbo v1.0 768p | `euler` | `simple` | 4 | 6/3 |
+| REF2VA Turbo v0.1 | `euler` | `simple` | 4 | 12/3 |
 
-The LightX profiles require the matching Comfy-format v0.1 LoRA. `Sampling Preset` does not load the LoRA.
+Turbo profiles require the exact matching adapter below. `Sampling Preset` configures sampling but does not load a LoRA.
 
-[Larryvrh/ComfyUI-MiniMax-H3-Turbo](https://github.com/Larryvrh/ComfyUI-MiniMax-H3-Turbo) uses a different loader, sampler, and adapter. Do not use its settings with a LightX workflow.
+| Profile | Required adapter |
+|---|---|
+| FL2VA Turbo v1.0, 8 steps | `minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors` |
+| FL2VA Turbo v1.0 768p, 4 steps | `minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors` |
+| REF2VA Turbo v0.1, 4 steps | `minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` |
+
+Do not mix FL2VA and REF2VA adapters or reuse one adapter's shifts with another. The older LightX v0.1 profile names remain available only to load existing workflows.
 
 ## Reference editing
 
@@ -123,7 +130,17 @@ Replace only [feature] with the corresponding feature from <Picture 2>.
 
 Resolution is rounded to a 32-pixel grid. `1 MP` follows ComfyUI's `1024²` convention.
 
-Larger images and longer frame profiles increase VRAM, RAM, and runtime. H3-Base was trained near 768×1344; a larger canvas does not guarantee more detail.
+The native H3 canvas is about 1344×768, or one megapixel. Start with `native detail | 0.98 MP`. A 2 MP canvas can help small or distant details in some images, but increases memory and runtime and is not a general quality upgrade.
+
+## Performance
+
+- Prefer the official pruned INT8 ConvRot diffusion model and NVFP4 text encoder listed above. The Comfy model card recommends the INT8 ConvRot model on current CUDA/PyTorch builds and FP8 only as a fallback.
+- Use the base 20-step profile as the quality reference. The official Turbo v1.0 eight-step profile is the practical speed/quality default; the 768p four-step profile favors speed.
+- SageAttention is optional. ComfyUI's H3 guide reports roughly double sampling speed with minimal quality loss. Enable it globally with ComfyUI's `--use-sage-attention` option or a compatible attention node, not both.
+- Match FL2VA source images to the generation canvas for lower preprocessing cost. In REF2VA, `match` is faster; the 2048-short-edge option can strengthen identity at higher cost.
+- Change one optimization at a time and compare with the same seed. Stacking unrelated caches, attention patches, and distilled adapters can reduce detail or introduce incompatibilities.
+
+Experimental W4A8 diffusion and INT8 ConvRot VAE variants require ComfyUI 0.31 or newer. They are not workflow defaults because hardware support and output behavior vary.
 
 ## Troubleshooting
 
@@ -133,7 +150,7 @@ This node was added in v15. Update MiniMax H3 Image Studio, restart ComfyUI, and
 
 ### A sampling profile or selector strategy is not in the list
 
-Errors mentioning `base quality | RES 20 steps` or `decode_recommended` mean that a v15 workflow reached an older backend. Updating files without restarting ComfyUI does not replace the node definitions already loaded in memory.
+Errors mentioning `Turbo v1.0 | 8 steps`, `base quality | RES 20 steps`, or `decode_recommended` mean that a current workflow reached an older backend. Updating files without restarting ComfyUI does not replace the node definitions already loaded in memory.
 
 1. Update MiniMax H3 Image Studio.
 2. Stop every running ComfyUI process.
@@ -141,7 +158,7 @@ Errors mentioning `base quality | RES 20 steps` or `decode_recommended` mean tha
 4. Reload the browser page.
 5. Reopen the workflow from `examples/ui/` or `examples/png/`.
 
-Do not repair this by changing only the two rejected values. The v15 decoder also adds the `recommended_index` output used by the workflow.
+Do not repair this by changing only the rejected values. The current decoder also provides the `recommended_index` output used by the workflow.
 
 ### `Load Image - image` is missing
 

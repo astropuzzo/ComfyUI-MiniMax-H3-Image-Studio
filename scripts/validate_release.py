@@ -18,11 +18,13 @@ SLUGS = (
     "H3_T2I",
     "H3_I2I",
     "H3_REFERENCE_EDIT",
-    "H3_I2I_LIGHTX_TURBO",
+    "H3_I2I_TURBO",
 )
 LEGACY_PROFILES = {
     "quality | 20 steps",
     "speed | 12 steps",
+    "LightX v0.1 | ER-SDE 4 steps",
+    "LightX v0.1 | SA-Solver 4 steps",
     "turbo | 8 steps (LoRA)",
     "turbo | 4 steps (LoRA, experimental)",
 }
@@ -180,11 +182,11 @@ def validate_api(repo: Path, slug: str) -> dict:
     profile = sampling["inputs"]["sampling_profile"]
     assert profile not in LEGACY_PROFILES, f"{path}: legacy sampling profile {profile}"
 
-    if slug == "H3_I2I_LIGHTX_TURBO":
+    if slug == "H3_I2I_TURBO":
         _, lora = nodes_by_type["LoraLoaderModelOnly"]
-        assert lora["inputs"]["strength_model"] == 0.75
-        assert "lightx2v_turbo_4step_v0.1_comfy" in lora["inputs"]["lora_name"]
-        assert profile == "LightX v0.1 | ER-SDE 4 steps"
+        assert lora["inputs"]["strength_model"] == 1.0
+        assert lora["inputs"]["lora_name"] == "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors"
+        assert profile == "Turbo v1.0 | 8 steps"
     return prompt
 
 

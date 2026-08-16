@@ -40,7 +40,7 @@ def load_nodes_with_stubs():
     model_sampling.ModelSamplingDiscreteFlow = ModelSamplingDiscreteFlow
     model_sampling.CONST = ConstMixin
     samplers.SCHEDULER_NAMES = ["simple"]
-    samplers.SAMPLER_NAMES = ["res_multistep", "er_sde", "sa_solver"]
+    samplers.SAMPLER_NAMES = ["res_multistep", "euler", "er_sde", "sa_solver"]
 
     comfy.model_management = model_management
     comfy.model_sampling = model_sampling
@@ -107,6 +107,48 @@ class RuntimeNodeTests(unittest.TestCase):
         self.assertIn("Preferred still", info)
         self.assertEqual(recommended_index, 2)
 
+    def test_decode_recommends_completed_edit_in_short_packet(self):
+        frames = torch.stack([
+            torch.zeros(16, 16, 3),
+            torch.full((16, 16, 3), 0.20),
+            torch.full((16, 16, 3), 0.80),
+            torch.full((16, 16, 3), 0.82),
+            torch.full((16, 16, 3), 0.81),
+        ])
+
+        class Vae:
+            @staticmethod
+            def decode(_latent):
+                return frames
+
+        samples = {
+            "samples": torch.zeros(1, 1, 1, 1),
+            "h3_context_frames": 5,
+            "h3_output_strategy": "first_stable_edit",
+        }
+        _, _, info, recommended_index = self.nodes.H3ImageDecode().decode(samples, Vae())
+        self.assertGreater(recommended_index, 0)
+        self.assertIn("first_stable_edit", info)
+
+    def test_decode_stable_quality_prefers_detailed_frame(self):
+        frames = torch.full((5, 16, 16, 3), 0.5)
+        checkerboard = (torch.arange(16).view(-1, 1) + torch.arange(16).view(1, -1)) % 2
+        frames[2] = checkerboard.unsqueeze(-1).expand(-1, -1, 3).float() * 0.8 + 0.1
+
+        class Vae:
+            @staticmethod
+            def decode(_latent):
+                return frames
+
+        samples = {
+            "samples": torch.zeros(1, 1, 1, 1),
+            "h3_context_frames": 5,
+            "h3_output_strategy": "stable_quality",
+        }
+        _, _, info, recommended_index = self.nodes.H3ImageDecode().decode(samples, Vae())
+        self.assertEqual(recommended_index, 2)
+        self.assertIn("stable_quality", info)
+
     def test_legacy_sampling_fallback_loads_without_model_sampling_av(self):
         class OriginalSampling:
             multiplier = 1000
@@ -133,14 +175,24 @@ class RuntimeNodeTests(unittest.TestCase):
         self.assertEqual(shifted.sampling.noise_scale, 0.5)
         self.assertEqual(shifted.sampling.audio_scale, 4.0)
 
-    def test_lightx_profiles_are_adapter_specific(self):
+    def test_official_turbo_profiles_are_adapter_specific(self):
         self.assertEqual(
-            self.nodes.SAMPLING_PROFILES["LightX v0.1 | ER-SDE 4 steps"],
-            ("er_sde", "simple", 4, 12.0, 3.0),
+            self.nodes.SAMPLING_PROFILES["Turbo v1.0 | 8 steps"],
+            ("euler", "simple", 8, 12.0, 3.0),
         )
         self.assertEqual(
-            self.nodes.SAMPLING_PROFILES["LightX v0.1 | SA-Solver 4 steps"],
-            ("sa_solver", "simple", 4, 12.0, 3.0),
+            self.nodes.SAMPLING_PROFILES["Turbo v1.0 768p | 4 steps"],
+            ("euler", "simple", 4, 6.0, 3.0),
+        )
+        self.assertEqual(
+            self.nodes.SAMPLING_PROFILES["REF2VA Turbo v0.1 | 4 steps"],
+            ("euler", "simple", 4, 12.0, 3.0),
+        )
+
+    def test_old_lightx_profiles_still_load(self):
+        self.assertEqual(
+            self.nodes.LEGACY_SAMPLING_PROFILES["LightX v0.1 | ER-SDE 4 steps"],
+            ("er_sde", "simple", 4, 12.0, 3.0),
         )
 
 

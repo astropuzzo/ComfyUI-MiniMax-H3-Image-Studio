@@ -17,7 +17,7 @@ SLUGS = (
     "H3_T2I",
     "H3_I2I",
     "H3_REFERENCE_EDIT",
-    "H3_I2I_LIGHTX_TURBO",
+    "H3_I2I_TURBO",
 )
 
 
