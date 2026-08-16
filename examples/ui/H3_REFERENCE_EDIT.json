@@ -1,7 +1,7 @@
 {
   "id": "00000000-0000-0000-0000-000000000000",
   "revision": 0,
-  "last_node_id": 903,
+  "last_node_id": 14,
   "last_link_id": 42,
   "nodes": [
     {
@@ -13,7 +13,7 @@
       ],
       "size": [
         390,
-        314
+        102
       ],
       "flags": {},
       "order": 0,
@@ -233,7 +233,7 @@
         170
       ],
       "flags": {},
-      "order": 10,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
@@ -331,7 +331,7 @@
         456
       ],
       "flags": {},
-      "order": 12,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -597,7 +597,7 @@
         46
       ],
       "flags": {},
-      "order": 13,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -639,7 +639,7 @@
         118
       ],
       "flags": {},
-      "order": 11,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
@@ -712,7 +712,7 @@
         106
       ],
       "flags": {},
-      "order": 14,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -778,7 +778,7 @@
         86
       ],
       "flags": {},
-      "order": 15,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -843,7 +843,7 @@
         306
       ],
       "flags": {},
-      "order": 16,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
@@ -1003,7 +1003,7 @@
         58
       ],
       "flags": {},
-      "order": 17,
+      "order": 13,
       "mode": 0,
       "inputs": [
         {
@@ -1044,7 +1044,7 @@
       ],
       "size": [
         390,
-        314
+        102
       ],
       "flags": {},
       "order": 5,
@@ -1092,194 +1092,6 @@
         "reference_2.png",
         "image"
       ]
-    },
-    {
-      "id": 900,
-      "type": "H3WorkflowNote",
-      "pos": [
-        0,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "START HERE · Reference Edit (REF2VA)",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "quick start",
-        "1. Picture 1 is the source to preserve.\n2. Picture 2 is the donor reference.\n3. Name both pictures explicitly in the edit instruction.\n4. Queue Prompt.\n\nAdd further ordered references only when each has a clear role."
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
-    },
-    {
-      "id": 901,
-      "type": "H3WorkflowNote",
-      "pos": [
-        850,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "MODELS & FOLDERS",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "models",
-        "MODEL LOCATIONS\n\ndiffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors (REF2VA)\ntext_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors\nvae/minimax_h3_video_vae_fp16.safetensors"
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
-    },
-    {
-      "id": 902,
-      "type": "H3WorkflowNote",
-      "pos": [
-        1700,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "WHY THESE SETTINGS",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "settings",
-        "A robust instruction says: keep Picture 1 person/face/body/pose/camera/framing/background; replace only the named feature from Picture 2. source_fidelity strengthens that wording but cannot enforce a pixel lock. The standard workflow stays at the recommended 5-frame profile."
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
-    },
-    {
-      "id": 903,
-      "type": "H3WorkflowNote",
-      "pos": [
-        2550,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 9,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "OPTIONAL / EXPERIMENTAL",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "optional / experimental",
-        "REF2VA supports up to nine ordered references. More references are not automatically better and can introduce ambiguity. Experimental w4a8 checkpoints may reduce memory, but require a current ComfyUI build and remain outside this dependency-free workflow."
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
     }
   ],
   "links": [
@@ -1459,7 +1271,7 @@
       "scale": 0.8396739130434783,
       "offset": [
         65.50161812297735,
-        65.50161812297735
+        -364.49838187702267
       ]
     },
     "image_studio": {

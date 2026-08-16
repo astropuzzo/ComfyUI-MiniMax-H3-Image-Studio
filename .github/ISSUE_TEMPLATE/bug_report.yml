@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        This is an experimental, AI-assisted project. Detailed reports and technical corrections are welcome. Do not post private prompts, images, tokens, or personal information.
+        Include enough detail to reproduce the problem. Do not post private prompts, images, tokens, or personal information.
   - type: textarea
     id: problem
     attributes:

@@ -1,7 +1,7 @@
 {
   "id": "00000000-0000-0000-0000-000000000000",
   "revision": 0,
-  "last_node_id": 903,
+  "last_node_id": 15,
   "last_link_id": 42,
   "nodes": [
     {
@@ -13,7 +13,7 @@
       ],
       "size": [
         390,
-        314
+        102
       ],
       "flags": {},
       "order": 0,
@@ -233,7 +233,7 @@
         170
       ],
       "flags": {},
-      "order": 9,
+      "order": 5,
       "mode": 0,
       "inputs": [
         {
@@ -331,7 +331,7 @@
         332
       ],
       "flags": {},
-      "order": 11,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
@@ -531,7 +531,7 @@
         46
       ],
       "flags": {},
-      "order": 13,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -573,7 +573,7 @@
         118
       ],
       "flags": {},
-      "order": 12,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -646,7 +646,7 @@
         106
       ],
       "flags": {},
-      "order": 14,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -712,7 +712,7 @@
         86
       ],
       "flags": {},
-      "order": 15,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -777,7 +777,7 @@
         306
       ],
       "flags": {},
-      "order": 16,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
@@ -937,7 +937,7 @@
         58
       ],
       "flags": {},
-      "order": 17,
+      "order": 13,
       "mode": 0,
       "inputs": [
         {
@@ -981,7 +981,7 @@
         82
       ],
       "flags": {},
-      "order": 10,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
@@ -1026,194 +1026,6 @@
         "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
         0.75
       ]
-    },
-    {
-      "id": 900,
-      "type": "H3WorkflowNote",
-      "pos": [
-        0,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 5,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "START HERE · Image to Image · LightX v0.1",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "quick start",
-        "1. Install the exact LightX v0.1 Comfy LoRA.\n2. Select input.png.\n3. Keep strength 0.75 as the published starting point.\n4. Queue Prompt.\n\nThis is the Kijai/LightX recipe, not Larry Turbo."
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
-    },
-    {
-      "id": 901,
-      "type": "H3WorkflowNote",
-      "pos": [
-        850,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "MODELS & FOLDERS",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "models",
-        "MODEL LOCATIONS\n\ndiffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors (FL2VA)\ntext_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors\nvae/minimax_h3_video_vae_fp16.safetensors\nloras/minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors"
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
-    },
-    {
-      "id": 902,
-      "type": "H3WorkflowNote",
-      "pos": [
-        1700,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "WHY THESE SETTINGS",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "settings",
-        "Published LightX v0.1 recipe: 4 steps, simple scheduler, ER-SDE (this workflow) or SA-Solver (alternate preset), H3 shifts 12/3, LoRA strength 0.75. The older generic RES Turbo options are intentionally deprecated."
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
-    },
-    {
-      "id": 903,
-      "type": "H3WorkflowNote",
-      "pos": [
-        2550,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "OPTIONAL / EXPERIMENTAL",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "optional / experimental",
-        "KJNodes can add MiniMax H3 memory-efficient SageAttention, low-VRAM attention and chunked feed-forward patches. They are optional and hardware/build dependent. Larry's adapter uses its own loader/sampler and recommended v4 checkpoint; follow that extension's workflow instead of substituting it here."
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
     }
   ],
   "links": [
@@ -1393,7 +1205,7 @@
       "scale": 0.8396739130434783,
       "offset": [
         65.50161812297735,
-        65.50161812297735
+        -364.49838187702267
       ]
     },
     "image_studio": {

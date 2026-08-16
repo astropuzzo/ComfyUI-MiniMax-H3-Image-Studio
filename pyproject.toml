@@ -1,7 +1,7 @@
 [project]
 name = "minimax-h3-image-studio"
 version = "15.0.0"
-description = "Image-first ComfyUI nodes and documented workflows for MiniMax H3 T2I, I2I, REF2VA editing and LightX acceleration."
+description = "ComfyUI nodes and workflows for MiniMax H3 image generation and editing."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"

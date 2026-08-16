@@ -1,7 +1,7 @@
 {
   "id": "00000000-0000-0000-0000-000000000000",
   "revision": 0,
-  "last_node_id": 903,
+  "last_node_id": 13,
   "last_link_id": 40,
   "nodes": [
     {
@@ -13,7 +13,7 @@
       ],
       "size": [
         390,
-        314
+        102
       ],
       "flags": {},
       "order": 0,
@@ -233,7 +233,7 @@
         170
       ],
       "flags": {},
-      "order": 9,
+      "order": 5,
       "mode": 0,
       "inputs": [
         {
@@ -331,7 +331,7 @@
         332
       ],
       "flags": {},
-      "order": 11,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
@@ -531,7 +531,7 @@
         46
       ],
       "flags": {},
-      "order": 12,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -573,7 +573,7 @@
         118
       ],
       "flags": {},
-      "order": 10,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
@@ -646,7 +646,7 @@
         106
       ],
       "flags": {},
-      "order": 13,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -712,7 +712,7 @@
         86
       ],
       "flags": {},
-      "order": 14,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -777,7 +777,7 @@
         306
       ],
       "flags": {},
-      "order": 15,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -937,7 +937,7 @@
         58
       ],
       "flags": {},
-      "order": 16,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
@@ -968,194 +968,6 @@
       "widgets_values": [
         "MiniMax_H3_Image"
       ]
-    },
-    {
-      "id": 900,
-      "type": "H3WorkflowNote",
-      "pos": [
-        0,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 5,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "START HERE · Image to Image",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "quick start",
-        "1. Select input.png in Load Image.\n2. Check FL2VA, Qwen and VAE filenames.\n3. Describe only the desired edit.\n4. Queue Prompt.\n\nStart with 5 frames. Increase temporal context only when it visibly helps."
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
-    },
-    {
-      "id": 901,
-      "type": "H3WorkflowNote",
-      "pos": [
-        850,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "MODELS & FOLDERS",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "models",
-        "MODEL LOCATIONS\n\ndiffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors (FL2VA)\ntext_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors\nvae/minimax_h3_video_vae_fp16.safetensors"
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
-    },
-    {
-      "id": 902,
-      "type": "H3WorkflowNote",
-      "pos": [
-        1700,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "WHY THESE SETTINGS",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "settings",
-        "source_fidelity is prompt guidance, not a denoise slider. The 5-frame profile normally recommends frame 0; the 20-frame I2I profile can measure a later stable edit. The decoder's recommended_index is wired directly into Single Image Output."
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
-    },
-    {
-      "id": 903,
-      "type": "H3WorkflowNote",
-      "pos": [
-        2550,
-        0
-      ],
-      "size": [
-        760,
-        310
-      ],
-      "flags": {},
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "section",
-          "name": "section",
-          "type": "COMBO",
-          "widget": {
-            "name": "section"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "OPTIONAL / EXPERIMENTAL",
-      "properties": {
-        "Image Studio": "v15",
-        "Node name for S&R": "H3WorkflowNote"
-      },
-      "widgets_values": [
-        "optional / experimental",
-        "Metric strategies remain available if you want to compare frames, but they can favor sharpness over edit intent. Frame selection alone cannot fix source copying: edit wording and conditioning remain decisive. Keep 5/9/13/20-frame image profiles; do not convert this into a long video workflow."
-      ],
-      "color": "#4b5563",
-      "bgcolor": "#171c27"
     }
   ],
   "links": [
@@ -1327,7 +1139,7 @@
       "scale": 0.8396739130434783,
       "offset": [
         65.50161812297735,
-        65.50161812297735
+        -364.49838187702267
       ]
     },
     "image_studio": {
