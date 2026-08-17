@@ -117,7 +117,7 @@
     "inputs": {
       "model": ["15", 0],
       "lora_name": "MaxiMin-HHH-R2V-ThisIsFine_LoRA_V0_1.safetensors",
-      "strength_model": 1.0
+      "strength_model": 0.5
     }
   },
   "0": {

@@ -1206,7 +1206,7 @@
       },
       "widgets_values": [
         "MaxiMin-HHH-R2V-ThisIsFine_LoRA_V0_1.safetensors",
-        1
+        0.5
       ]
     }
   ],
@@ -1407,7 +1407,7 @@
       ]
     },
     "image_studio": {
-      "release": "v17.0.1",
+      "release": "v17.0.2",
       "source_api": "examples/api/H3_REFERENCE_SINGLE_API.json"
     }
   },

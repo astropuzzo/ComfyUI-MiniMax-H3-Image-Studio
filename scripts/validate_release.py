@@ -198,7 +198,7 @@ def validate_api(repo: Path, slug: str) -> dict:
         assert unet["inputs"]["unet_name"] == "minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors"
         assert vae["inputs"]["vae_name"] == "minimax_h3_t1_image_vae_step1597.safetensors"
         assert profile == "hybrid single image | ER-SDE 8 steps"
-        assert {node["inputs"]["strength_model"] for node in loras} == {0.75, 1.0}
+        assert {node["inputs"]["strength_model"] for node in loras} == {0.5, 0.75}
         assert {node["inputs"]["lora_name"] for node in loras} == {
             "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
             "MaxiMin-HHH-R2V-ThisIsFine_LoRA_V0_1.safetensors",

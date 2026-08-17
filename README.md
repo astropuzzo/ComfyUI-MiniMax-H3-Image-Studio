@@ -142,9 +142,11 @@ Each reference socket represents exactly one picture. If an upstream node sends 
 | Hybrid diffusion model | `minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors` |
 | Image VAE | `minimax_h3_t1_image_vae_step1597.safetensors` |
 | Turbo adapter | `minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors`, strength 0.75 |
-| Detail adapter | `MaxiMin-HHH-R2V-ThisIsFine_LoRA_V0_1.safetensors`, strength 1.0 |
+| Detail adapter | `MaxiMin-HHH-R2V-ThisIsFine_LoRA_V0_1.safetensors`, strength 0.5 |
 
 The image VAE is intended only for one-frame output. Keep `minimax_h3_video_vae_fp16.safetensors` for multi-frame workflows. The hybrid checkpoint, image VAE, and detail adapter are community experiments and inherit their source-model licenses.
+
+The detail adapter is intentionally set to `0.5`. In direct pose-transfer testing, `1.0` over-preserved Picture 1 and suppressed the requested pose, while `0.5` retained its identity and environment and allowed Picture 2's pose to transfer.
 
 Downloads: [hybrid checkpoint](https://huggingface.co/smhfacct/Minimax-H3-fl2va-ref2va-hybrid-models), [single-image VAE](https://huggingface.co/Mamad8/MiniMax-H3-Image-VAE), [ThisIsFine adapter](https://huggingface.co/Mamad8/MaxiMin-HHH-R2V-ThisIsFine), and [Turbo adapter](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/loras).
 

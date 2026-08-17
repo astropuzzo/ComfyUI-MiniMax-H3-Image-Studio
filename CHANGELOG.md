@@ -4,6 +4,10 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 
 ## [Unreleased]
 
+## [17.0.2] - 2026-08-17
+
+- Reduced the experimental single-image detail adapter from `1.0` to `0.5` after direct pose-transfer testing showed that full strength could suppress requested edits.
+
 ## [17.0.1] - 2026-08-17
 
 - Made explicit multi-reference trait assignments override Picture 1 preservation wording.
