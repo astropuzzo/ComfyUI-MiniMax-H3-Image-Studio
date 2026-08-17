@@ -534,7 +534,7 @@
         1344,
         768,
         "single image | 1 frame (image VAE)",
-        0.75,
+        0.6,
         "crop_center",
         "max_identity_2048",
         true
@@ -1407,7 +1407,7 @@
       ]
     },
     "image_studio": {
-      "release": "v17.0.0",
+      "release": "v17.0.1",
       "source_api": "examples/api/H3_REFERENCE_SINGLE_API.json"
     }
   },

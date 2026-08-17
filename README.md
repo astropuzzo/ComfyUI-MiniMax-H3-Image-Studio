@@ -125,11 +125,11 @@ The hybrid single-image profile reproduces the linked community workflow. It is 
 REF2VA rebuilds an image from ordered references. Refer to each input by number:
 
 ```text
-Keep the subject, pose, framing, and background from <Picture 1>.
-Replace only [feature] with the corresponding feature from <Picture 2>.
+Keep the identity, face, hair, clothing, camera, and environment from <Picture 1>.
+Use the body pose and limb positions from <Picture 2>. The final pose must visibly match <Picture 2>.
 ```
 
-`source_fidelity` changes the preservation text added to the prompt. It is not denoise strength.
+`source_fidelity` changes preservation wording for traits that the instruction does not mention. Explicit assignments such as "pose from `<Picture 2>`" take priority. It is not denoise strength. For large pose, framing, or composition transfers, start around `0.50-0.60`; higher values favor an unchanged `<Picture 1>`.
 
 Each reference socket represents exactly one picture. If an upstream node sends an IMAGE batch, only its first image is used so later sockets keep stable `<Picture N>` numbers. State the role of every connected picture explicitly in the target instructions.
 
@@ -146,7 +146,7 @@ Each reference socket represents exactly one picture. If an upstream node sends 
 
 The image VAE is intended only for one-frame output. Keep `minimax_h3_video_vae_fp16.safetensors` for multi-frame workflows. The hybrid checkpoint, image VAE, and detail adapter are community experiments and inherit their source-model licenses.
 
-Downloads: [hybrid checkpoint](https://huggingface.co/smhfacct/Minimax-H3-fl2va-ref2va-hybrid-models), [single-image VAE](https://huggingface.co/Mamad8/MiniMax-H3-Image-VAE), [ThisIsFine adapter](https://huggingface.co/Mamad8/MaxiMin-HHH-R2V-ThisIsFine), and [Turbo adapter](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/split_files/loras).
+Downloads: [hybrid checkpoint](https://huggingface.co/smhfacct/Minimax-H3-fl2va-ref2va-hybrid-models), [single-image VAE](https://huggingface.co/Mamad8/MiniMax-H3-Image-VAE), [ThisIsFine adapter](https://huggingface.co/Mamad8/MaxiMin-HHH-R2V-ThisIsFine), and [Turbo adapter](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/loras).
 
 The approach was prompted by the [single-image community workflow](https://www.reddit.com/r/StableDiffusion/comments/1vqka28/h3_singleimage_no_more_monkey_patching_also_no/). ComfyUI main subsequently added conversion from a regular empty image latent in [commit `0696f61`](https://github.com/Comfy-Org/ComfyUI/commit/0696f61dced6340086cdca64a96200c50f306c66). Image Studio builds the correct nested H3 video/audio latent itself, so its one-frame profile also works on ComfyUI 0.33.1 without that core commit.
 

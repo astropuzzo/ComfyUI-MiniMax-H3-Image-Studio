@@ -141,8 +141,9 @@ class RuntimeNodeTests(unittest.TestCase):
             0.75,
             2,
         )
-        self.assertIn("<Picture 1> is the primary reference", prompt)
-        self.assertIn("Use <Picture 2>", prompt)
+        self.assertIn("target instructions take priority", prompt.lower())
+        self.assertIn("<Picture 1> through <Picture 2>", prompt)
+        self.assertIn("even when it conflicts with <Picture 1>", prompt)
         self.assertNotIn("preserve identity, pose, composition", prompt.lower())
 
     def test_decode_appends_recommended_index_without_reordering_old_outputs(self):

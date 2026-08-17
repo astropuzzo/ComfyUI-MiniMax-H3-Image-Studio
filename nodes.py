@@ -348,7 +348,7 @@ def _normalize_prompt(
         preserve = "Keep the source recognizable while applying the requested changes."
 
     still = (
-        "Create one still image. Keep the camera, composition, and subjects fixed across all generated frames. "
+        "Create one finished still image, not a collage, split screen, sequence, or duplicated subject. "
         "Do not add motion, cuts, or audio."
     )
 
@@ -360,18 +360,22 @@ def _normalize_prompt(
             f"Target edit: {prompt}"
         )
     if preserve_strength >= 0.8:
-        primary_rule = "Preserve the identity and all requested traits of <Picture 1> unless the target instruction explicitly changes them."
+        primary_rule = "Preserve only the unmentioned identity and appearance traits of <Picture 1>."
     elif preserve_strength >= 0.5:
-        primary_rule = "Keep <Picture 1> recognizable and preserve the traits that the target instruction does not change."
+        primary_rule = "Keep the unmentioned identity traits of <Picture 1> recognizable."
     else:
-        primary_rule = "Use <Picture 1> as the primary visual source while allowing the requested changes."
+        primary_rule = "Use unmentioned traits from <Picture 1> only when they do not conflict with the requested result."
     additional_tags = ", ".join(f"<Picture {index}>" for index in range(2, reference_count + 1))
-    additional_rule = (
-        f" Use {additional_tags} only for the attributes explicitly assigned to each one."
-        if additional_tags else ""
-    )
+    additional_rule = ""
+    if additional_tags:
+        additional_rule = (
+            f" The connected references are <Picture 1> through <Picture {reference_count}>. "
+            "The target instructions take priority over source preservation. When a trait is assigned to a picture, "
+            "copy that trait from that picture even when it conflicts with <Picture 1>; do not revert the requested "
+            "change to match <Picture 1>. Use each picture only for its explicitly assigned traits."
+        )
     return (
-        f"<Picture 1> is the primary reference.{additional_rule} {primary_rule} "
+        f"Follow the target image instructions exactly.{additional_rule} {primary_rule} "
         f"{still}\n\nTarget image instructions: {prompt}"
     )
 
@@ -726,7 +730,7 @@ class H3ImagePrepare:
                 "preserve_strength": (
                     "FLOAT",
                     {
-                        "default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05,
+                        "default": 0.60, "min": 0.0, "max": 1.0, "step": 0.05,
                         "tooltip": (
                             "Prompt-language preservation strength for I2I/REF2VA. This is NOT diffusion denoise "
                             "strength and does not change the sampler schedule."
@@ -1234,10 +1238,10 @@ class H3ReferenceEditPrepare:
                 "source_fidelity": (
                     "FLOAT",
                     {
-                        "default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05,
+                        "default": 0.60, "min": 0.0, "max": 1.0, "step": 0.05,
                         "tooltip": (
-                            "Controls how strongly the still prompt asks H3 to preserve identity, pose, composition and "
-                            "geometry. This is NOT diffusion denoise strength and does not alter the sigma schedule."
+                            "Controls preservation wording for unmentioned Picture 1 traits. Explicit target instructions "
+                            "always take priority. This is NOT diffusion denoise strength and does not alter the sigma schedule."
                         ),
                     },
                 ),

@@ -39,7 +39,7 @@
       "width": ["4", 0],
       "height": ["4", 1],
       "quality_profile": "single image | 1 frame (image VAE)",
-      "source_fidelity": 0.75,
+      "source_fidelity": 0.6,
       "source_fit": "crop_center",
       "reference_detail": "max_identity_2048",
       "optimize_for_still": true

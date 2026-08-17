@@ -4,6 +4,13 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 
 ## [Unreleased]
 
+## [17.0.1] - 2026-08-17
+
+- Made explicit multi-reference trait assignments override Picture 1 preservation wording.
+- Removed ambiguous still-image wording that could lock the result to Picture 1's composition.
+- Lowered the reference-edit preservation default to `0.60` for visible pose and composition transfers.
+- Corrected the official Turbo adapter download link.
+
 ## [17.0.0] - 2026-08-17
 
 - Added a genuine one-frame H3 latent profile without monkey-patching ComfyUI.

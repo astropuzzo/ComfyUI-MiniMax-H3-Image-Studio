@@ -60,7 +60,7 @@
         1
       ],
       "quality_profile": "recommended | 5 frames",
-      "source_fidelity": 0.75,
+      "source_fidelity": 0.6,
       "source_fit": "crop_center",
       "reference_detail": "max_identity_2048",
       "optimize_for_still": true
