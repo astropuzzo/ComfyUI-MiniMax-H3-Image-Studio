@@ -4,6 +4,15 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 
 ## [Unreleased]
 
+## [17.0.0] - 2026-08-17
+
+- Added a genuine one-frame H3 latent profile without monkey-patching ComfyUI.
+- Added an experimental single-image REF2VA workflow using the community hybrid checkpoint, image VAE, and published adapter stack.
+- Fixed batched reference sockets shifting `<Picture N>` numbering by using exactly one picture per socket, matching upstream REF2VA behavior.
+- Reworked reference prompt optimization to assign explicit picture roles without broadly freezing pose, composition, and geometry.
+- Added missing-reference-role diagnostics and clearer one-frame VAE compatibility guidance.
+- Changed the standard REF2VA example to retain maximum available reference detail.
+
 ## [16.0.0] - 2026-08-17
 
 - Replaced the bundled experimental LightX v0.1 recipe with the official FL2VA Turbo v1.0 eight-step adapter and Euler schedule.

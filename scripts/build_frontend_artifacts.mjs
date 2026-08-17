@@ -25,12 +25,14 @@ const workflowSpecs = [
   { slug: "H3_T2I", api: "H3_T2I_API.json" },
   { slug: "H3_I2I", api: "H3_I2I_API.json" },
   { slug: "H3_REFERENCE_EDIT", api: "H3_REFERENCE_EDIT_API.json" },
+  { slug: "H3_REFERENCE_SINGLE", api: "H3_REFERENCE_SINGLE_API.json" },
   { slug: "H3_I2I_TURBO", api: "H3_I2I_TURBO_API.json" },
 ];
 
 const basePositions = {
   "1": [0, 430],
   "15": [470, 430],
+  "16": [470, 780],
   "8": [940, 430],
   "7": [1410, 430],
   "10": [1880, 430],

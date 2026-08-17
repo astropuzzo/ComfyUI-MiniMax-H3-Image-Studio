@@ -247,7 +247,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v16",
+        "Image Studio": "v17",
         "Node name for S&R": "H3ImageResolutionPreset"
       },
       "widgets_values": [
@@ -363,7 +363,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v16",
+        "Image Studio": "v17",
         "Node name for S&R": "H3TextToImagePrepare"
       },
       "widgets_values": [
@@ -525,7 +525,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v16",
+        "Image Studio": "v17",
         "Node name for S&R": "H3ImageSamplingPreset"
       },
       "widgets_values": [
@@ -659,7 +659,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v16",
+        "Image Studio": "v17",
         "Node name for S&R": "H3ImageDecode"
       },
       "color": "#25534d",
@@ -809,7 +809,7 @@
         }
       ],
       "properties": {
-        "Image Studio": "v16",
+        "Image Studio": "v17",
         "Node name for S&R": "H3ImageFrameSelector"
       },
       "widgets_values": [
@@ -1011,7 +1011,7 @@
       ]
     },
     "image_studio": {
-      "release": "v16.0.0",
+      "release": "v17.0.0",
       "source_api": "examples/api/H3_T2I_API.json"
     }
   },

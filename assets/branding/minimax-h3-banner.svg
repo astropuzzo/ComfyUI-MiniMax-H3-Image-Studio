@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1680" height="720" viewBox="0 0 1680 720" role="img" aria-labelledby="title desc">
-  <title id="title">MiniMax H3 Image Studio v16</title>
+  <title id="title">MiniMax H3 Image Studio v17</title>
   <desc id="desc">Image-first ComfyUI workflows for MiniMax H3.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -25,6 +25,6 @@
     <text x="158" y="290" font-family="Inter,Arial,sans-serif" font-size="70" font-weight="300" fill="#cbd5e1">Image Studio</text>
     <text x="162" y="366" font-family="Inter,Arial,sans-serif" font-size="28" font-weight="600" letter-spacing="3" fill="#a5b4fc">T2I · I2I · REF2VA · LIGHTX</text>
     <rect x="1260" y="196" width="130" height="128" rx="34" fill="#0b1020" stroke="url(#line)" stroke-width="8"/>
-    <text x="1325" y="278" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="58" font-weight="800" fill="#f8fafc">v16</text>
+    <text x="1325" y="278" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="58" font-weight="800" fill="#f8fafc">v17</text>
   </g>
 </svg>

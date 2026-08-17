@@ -43,11 +43,13 @@ ASPECT_RATIOS: Dict[str, Tuple[int, int]] = {
     "21:9 ultrawide": (21, 9),
 }
 
+SINGLE_IMAGE_FRAME_PROFILE = "single image | 1 frame (image VAE)"
 RECOMMENDED_FRAME_PROFILE = "recommended | 5 frames"
 BALANCED_FRAME_PROFILE = "extended quality | 9 frames"
 HIGH_FRAME_PROFILE = "high quality | 13 frames"
 MAX_QUALITY_FRAME_PROFILE = "maximum quality | 20 frames (slow)"
 FRAME_PRESETS: Dict[str, int] = {
+    SINGLE_IMAGE_FRAME_PROFILE: 1,
     RECOMMENDED_FRAME_PROFILE: 5,
     BALANCED_FRAME_PROFILE: 9,
     HIGH_FRAME_PROFILE: 13,
@@ -75,6 +77,7 @@ SAMPLING_PROFILES: Dict[str, Tuple[str, str, int, float, float]] = {
     "Turbo v1.0 | 8 steps": ("euler", "simple", 8, 12.0, 3.0),
     "Turbo v1.0 768p | 4 steps": ("euler", "simple", 4, 6.0, 3.0),
     "REF2VA Turbo v0.1 | 4 steps": ("euler", "simple", 4, 12.0, 3.0),
+    "hybrid single image | ER-SDE 8 steps": ("er_sde", "sgm_uniform", 8, 12.0, 3.0),
 }
 
 # Exact v14 strings and settings remain at the bottom of the combo so older
@@ -356,12 +359,20 @@ def _normalize_prompt(
             f"<Picture 1> is the source image. Apply the requested edit. {still} {preserve}\n\n"
             f"Target edit: {prompt}"
         )
-    picture_tags = ", ".join(f"<Picture {index}>" for index in range(1, reference_count + 1))
-    reference_word = "reference" if reference_count == 1 else "references"
-    verb = "is" if reference_count == 1 else "are"
+    if preserve_strength >= 0.8:
+        primary_rule = "Preserve the identity and all requested traits of <Picture 1> unless the target instruction explicitly changes them."
+    elif preserve_strength >= 0.5:
+        primary_rule = "Keep <Picture 1> recognizable and preserve the traits that the target instruction does not change."
+    else:
+        primary_rule = "Use <Picture 1> as the primary visual source while allowing the requested changes."
+    additional_tags = ", ".join(f"<Picture {index}>" for index in range(2, reference_count + 1))
+    additional_rule = (
+        f" Use {additional_tags} only for the attributes explicitly assigned to each one."
+        if additional_tags else ""
+    )
     return (
-        f"{picture_tags} {verb} the ordered {reference_word}. Use each one as specified. "
-        f"{still} {preserve}\n\nTarget edit: {prompt}"
+        f"<Picture 1> is the primary reference.{additional_rule} {primary_rule} "
+        f"{still}\n\nTarget image instructions: {prompt}"
     )
 
 
@@ -395,20 +406,18 @@ def _collect_reference_images(
     source_image: torch.Tensor,
     additional_images: Sequence[Optional[torch.Tensor]],
 ) -> List[torch.Tensor]:
-    """Expand IMAGE batches into ordered, single-image REF2VA references."""
+    """Collect one ordered REF2VA picture from each connected image socket."""
     references: List[torch.Tensor] = []
     for image in (source_image, *additional_images):
         if image is None:
             continue
         if not isinstance(image, torch.Tensor) or image.ndim != 4 or image.shape[0] < 1:
             raise ValueError("Every REF2VA reference must be a non-empty ComfyUI IMAGE batch [B,H,W,C].")
-        for batch_index in range(int(image.shape[0])):
-            references.append(image[batch_index:batch_index + 1])
-            if len(references) > MAX_REFERENCE_IMAGES:
-                raise ValueError(
-                    f"MiniMax H3 REF2VA supports at most {MAX_REFERENCE_IMAGES} reference images. "
-                    "Remove extra inputs or reduce the input IMAGE batch."
-                )
+        references.append(image[:1])
+        if len(references) > MAX_REFERENCE_IMAGES:
+            raise ValueError(
+                f"MiniMax H3 REF2VA supports at most {MAX_REFERENCE_IMAGES} reference images."
+            )
     return references
 
 
@@ -701,9 +710,9 @@ class H3ImagePrepare:
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
                         "tooltip": (
-                            "H3 jointly denoises the entire temporal packet. The complete selected 5-, 9-, 13-, or 20-frame "
-                            "profile is decoded for Single Image Output; that node normally emits one selected still "
-                            "or the full batch when emit_candidate_batch is enabled."
+                            "H3 jointly denoises the entire temporal packet. The one-frame profile is intended for "
+                            "REF2VA and the experimental H3 image VAE. Multi-frame profiles remain available for the "
+                            "standard video VAE."
                         ),
                     },
                 ),
@@ -734,7 +743,7 @@ class H3ImagePrepare:
                 "reference_size": (
                     ["match_generation_area", "max_identity_2048"],
                     {
-                        "default": "match_generation_area",
+                        "default": "max_identity_2048",
                         "tooltip": (
                             "REF2VA reference encoding size. max_identity_2048 keeps more source resolution when available "
                             "and can cost more memory."
@@ -810,6 +819,11 @@ class H3ImagePrepare:
         width = _round_to_multiple(width, CANVAS_MULTIPLE)
         height = _round_to_multiple(height, CANVAS_MULTIPLE)
         internal_frames = _resolve_frame_count(frame_preset)
+        if mode == "image_to_image (FL2VA)" and internal_frames == 1:
+            raise ValueError(
+                "The one-frame profile is not compatible with FL2VA frame-0 editing because the only output frame "
+                "would also be the fixed source keyframe. Use Reference Edit with a REF2VA or hybrid checkpoint."
+            )
 
         # Preserve the complete selected temporal profile. Single Image Output
         # decides whether to expose one still or every generated candidate.
@@ -837,6 +851,17 @@ class H3ImagePrepare:
             ignored_notes.append("Additional reference_image_2..9 inputs are connected but ignored outside REF2VA mode.")
         if mode == "text_to_image (FL2VA)" and source_image is not None:
             ignored_notes.append("source_image is connected but ignored in Text to Image mode.")
+        if mode == "reference_edit (REF2VA)":
+            connected_references = (source_image, *additional_references)
+            batched_inputs = [
+                index for index, image in enumerate(connected_references, start=1)
+                if isinstance(image, torch.Tensor) and image.ndim == 4 and image.shape[0] > 1
+            ]
+            if batched_inputs:
+                ignored_notes.append(
+                    "REF2VA uses the first image from each reference socket; extra batch images were ignored for "
+                    f"Picture input(s) {', '.join(map(str, batched_inputs))}."
+                )
 
         references = (
             _collect_reference_images(source_image, additional_references)
@@ -846,6 +871,16 @@ class H3ImagePrepare:
         final_prompt = _normalize_prompt(
             mode, prompt, optimize_prompt, preserve_strength, max(1, len(references))
         )
+        if mode == "reference_edit (REF2VA)" and len(references) > 1:
+            missing_tags = [
+                f"<Picture {index}>" for index in range(1, len(references) + 1)
+                if f"<picture {index}>" not in (prompt or "").lower()
+            ]
+            if missing_tags:
+                ignored_notes.append(
+                    "Target instructions do not explicitly assign " + ", ".join(missing_tags) +
+                    "; reference adherence is more reliable when every connected picture has a stated role."
+                )
 
         black = torch.zeros((1, height, width, 3), dtype=torch.float32)
         fitted_source = black
@@ -912,12 +947,18 @@ class H3ImagePrepare:
             else f"temporal latent naturally decodes {natural_frames} frames; H3 Exact Frame Decode keeps the requested {requested_frames}"
         )
         ignored_text = f" {' '.join(ignored_notes)}" if ignored_notes else ""
+        image_vae_note = (
+            " The one-frame profile requires minimax_h3_t1_image_vae_step1597.safetensors for the intended sharp "
+            "single-image decode; the standard video VAE can look soft."
+            if internal_frames == 1 else ""
+        )
         info = (
             f"Mode: {mode} | temporal profile: {internal_frames} frames | canvas {width}×{height} | "
             f"internal packet {natural_frames} frames | decoded profile {requested_frames} | {decode_note} | "
             f"{trained_note}. {checkpoint_note} Decode only the video latent; the audio VAE is unnecessary for image output. "
             f"Preferred output strategy: {output_strategy}; Single Image Output receives the full decoded profile and "
             f"normally emits one selected frame unless emit_candidate_batch is enabled.{ignored_text}{_prompt_warning(prompt)}"
+            f"{image_vae_note}"
         )
         return cond, latent, fitted_source, requested_frames, final_prompt, info
 
@@ -968,9 +1009,8 @@ class H3TextToImagePrepare:
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
                         "tooltip": (
-                            "5 frames is the recommended speed/quality balance. 20 frames gives H3 more temporal "
-                            "context and is much slower. The complete profile reaches Single Image Output, which "
-                            "returns one selected still unless emit_candidate_batch is enabled."
+                            "5 frames is the normal FL2VA profile. The one-frame profile needs the experimental H3 "
+                            "image VAE; 20 frames adds temporal context at much higher cost."
                         ),
                     },
                 ),
@@ -1067,9 +1107,8 @@ class H3ImageToImagePrepare:
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
                         "tooltip": (
-                            "5 frames is the recommended edit profile. With 20 frames, FL2VA may retain source-like "
-                            "transition frames near the start. Exact Frame Decode now preserves the complete selected "
-                            "profile; Single Image Output scores it and normally emits one still."
+                            "5 frames is the minimum FL2VA edit profile. One frame is rejected because its only frame "
+                            "would be the fixed source keyframe. Use Reference Edit for single-image generation."
                         ),
                     },
                 ),
@@ -1151,7 +1190,7 @@ class H3ReferenceEditPrepare:
         return {
             "required": {
                 "clip": ("CLIP", {"tooltip": "MiniMax H3 Qwen text/vision encoder."}),
-                "vae": ("VAE", {"tooltip": "MiniMax H3 video VAE used to encode every ordered reference image."}),
+                "vae": ("VAE", {"tooltip": "MiniMax H3 video VAE, or the experimental H3 image VAE for the one-frame profile."}),
                 "source_image": ("IMAGE", {"tooltip": "Primary REF2VA reference, addressed as <Picture 1> in the prompt."}),
                 "edit_instruction": (
                     "STRING",
@@ -1187,8 +1226,8 @@ class H3ReferenceEditPrepare:
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
                         "tooltip": (
-                            "5 frames is the recommended speed/quality balance. 20 frames gives REF2VA more temporal "
-                            "context and is much slower. The complete profile is available to Single Image Output."
+                            "One frame removes temporal competition and is recommended with the experimental H3 image "
+                            "VAE. Use 5 or more frames with the standard H3 video VAE."
                         ),
                     },
                 ),
@@ -1212,7 +1251,7 @@ class H3ReferenceEditPrepare:
                 "reference_detail": (
                     ["match_generation_area", "max_identity_2048"],
                     {
-                        "default": "match_generation_area",
+                        "default": "max_identity_2048",
                         "tooltip": (
                             "How much source resolution each REF2VA reference keeps before VAE encoding. "
                             "max_identity_2048 may preserve more identity detail at higher memory cost."
@@ -1310,8 +1349,8 @@ class H3ImageDecode:
                     "LATENT",
                     {
                         "tooltip": (
-                            "Sampled H3 latent. Image Studio metadata specifies whether each batch item keeps a 5-, 9-, 13-, or "
-                            "20-frame temporal profile."
+                            "Sampled H3 latent. Image Studio metadata specifies whether each batch item keeps a 1-, 5-, 9-, "
+                            "13-, or 20-frame temporal profile."
                         )
                     },
                 ),
@@ -1420,7 +1459,7 @@ class H3ImageFrameSelector:
                     {
                         "tooltip": (
                             "Decoded H3 IMAGE batch. With the supplied Exact Frame Decode node this contains the "
-                            "complete selected 5-, 9-, 13-, or 20-frame profile."
+                            "complete selected 1-, 5-, 9-, 13-, or 20-frame profile."
                         )
                     },
                 ),
@@ -1538,7 +1577,7 @@ class H3ImageFrameSelector:
                         "default": False,
                         "tooltip": (
                             "OFF: selected_image contains only the picked still. ON: selected_image contains the entire "
-                            "decoded 5-, 9-, 13-, or 20-frame batch, so an already-connected Preview Image or Save Image node "
+                            "decoded 1-, 5-, 9-, 13-, or 20-frame batch, so an already-connected Preview Image or Save Image node "
                             "shows or saves every generated image. candidate_batch_debug remains the ranked top-k "
                             "subset. Enabling this intentionally retains more RAM/VRAM."
                         ),
@@ -1966,7 +2005,7 @@ class H3ImageSamplingPreset:
     """Apply an H3 image sampling preset."""
 
     DESCRIPTION = (
-        "Applies an official base or distilled MiniMax H3 sampling profile. Load the matching Turbo adapter upstream."
+        "Applies a documented base, Turbo, or experimental single-image sampling profile."
     )
 
     @classmethod
@@ -1980,7 +2019,8 @@ class H3ImageSamplingPreset:
                         "default": "base quality | RES 20 steps",
                         "tooltip": (
                             "Base profiles use RES Multistep. Turbo profiles use the official Euler/simple recipe and "
-                            "must be paired with the exact FL2VA 8-step, FL2VA 768p 4-step, or REF2VA 4-step adapter."
+                            "must use the matching adapter. The hybrid single-image profile reproduces the published "
+                            "ER-SDE/SGM Uniform community workflow and is not an official MiniMax recipe."
                         ),
                     },
                 ),
@@ -1991,7 +2031,7 @@ class H3ImageSamplingPreset:
     RETURN_NAMES = ("model", "sampler", "sigmas", "sampling_info")
     OUTPUT_TOOLTIPS = (
         "Cloned model patched with the selected H3 recipe's video/audio shifts.",
-        "Sampler required by the selected base or Turbo recipe.",
+        "Sampler required by the selected recipe.",
         "Complete sigma schedule for the selected recipe.",
         "Resolved profile, sampler, scheduler, step count, shifts and AV sampling backend.",
     )

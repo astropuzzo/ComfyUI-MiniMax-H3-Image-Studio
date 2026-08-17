@@ -37,8 +37,18 @@ def load_nodes_with_stubs():
     class ConstMixin:
         pass
 
+    class FakeNestedTensor:
+        def __init__(self, tensors):
+            self.tensors = tensors
+            self.is_nested = True
+
+        def unbind(self):
+            return self.tensors
+
     model_sampling.ModelSamplingDiscreteFlow = ModelSamplingDiscreteFlow
     model_sampling.CONST = ConstMixin
+    model_management.intermediate_device = lambda: torch.device("cpu")
+    nested_tensor.NestedTensor = FakeNestedTensor
     samplers.SCHEDULER_NAMES = ["simple"]
     samplers.SAMPLER_NAMES = ["res_multistep", "euler", "er_sde", "sa_solver"]
 
@@ -88,6 +98,52 @@ class RuntimeNodeTests(unittest.TestCase):
         self.assertEqual(result[2], 3)
         self.assertEqual(tuple(result[0].shape), (1, 16, 16, 3))
         self.assertTrue(torch.equal(result[0][0], frames[3]))
+
+    def test_single_image_profile_builds_one_frame_av_latent(self):
+        latent, requested, natural = self.nodes._empty_h3_av_latent(1344, 768, 1)
+        video, audio = latent["samples"].unbind()
+        self.assertEqual(requested, 1)
+        self.assertEqual(natural, 1)
+        self.assertEqual(tuple(video.shape), (1, 24, 1, 48, 84))
+        self.assertEqual(tuple(audio.shape), (1, 32, 2, 2))
+
+    def test_fl2va_rejects_single_frame_keyframe_edit(self):
+        with self.assertRaisesRegex(ValueError, "not compatible with FL2VA"):
+            self.nodes.H3ImagePrepare().prepare(
+                clip=None,
+                mode="image_to_image (FL2VA)",
+                prompt="change the jacket",
+                width=1344,
+                height=768,
+                frame_preset=self.nodes.SINGLE_IMAGE_FRAME_PROFILE,
+                optimize_prompt=True,
+                preserve_strength=0.75,
+                source_fit="crop_center",
+                reference_size="match_generation_area",
+            )
+
+    def test_reference_sockets_use_one_picture_without_shifting_tags(self):
+        primary_batch = torch.stack([
+            torch.zeros(8, 8, 3),
+            torch.ones(8, 8, 3),
+        ])
+        second = torch.full((1, 8, 8, 3), 0.5)
+        references = self.nodes._collect_reference_images(primary_batch, (second, None))
+        self.assertEqual(len(references), 2)
+        self.assertTrue(torch.equal(references[0], primary_batch[:1]))
+        self.assertTrue(torch.equal(references[1], second))
+
+    def test_reference_prompt_assigns_explicit_picture_roles(self):
+        prompt = self.nodes._normalize_prompt(
+            "reference_edit (REF2VA)",
+            "Keep the face from <Picture 1> and jacket from <Picture 2>.",
+            True,
+            0.75,
+            2,
+        )
+        self.assertIn("<Picture 1> is the primary reference", prompt)
+        self.assertIn("Use <Picture 2>", prompt)
+        self.assertNotIn("preserve identity, pose, composition", prompt.lower())
 
     def test_decode_appends_recommended_index_without_reordering_old_outputs(self):
         class Vae:
@@ -187,6 +243,10 @@ class RuntimeNodeTests(unittest.TestCase):
         self.assertEqual(
             self.nodes.SAMPLING_PROFILES["REF2VA Turbo v0.1 | 4 steps"],
             ("euler", "simple", 4, 12.0, 3.0),
+        )
+        self.assertEqual(
+            self.nodes.SAMPLING_PROFILES["hybrid single image | ER-SDE 8 steps"],
+            ("er_sde", "sgm_uniform", 8, 12.0, 3.0),
         )
 
     def test_old_lightx_profiles_still_load(self):

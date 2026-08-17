@@ -59,6 +59,7 @@ Open a file from `examples/ui/`, or drag a file from `examples/png/` onto the ca
 | Text to Image | [Open](examples/ui/H3_T2I.json) | [Open](examples/png/H3_T2I.png) | [API](examples/api/H3_T2I_API.json) |
 | Image to Image | [Open](examples/ui/H3_I2I.json) | [Open](examples/png/H3_I2I.png) | [API](examples/api/H3_I2I_API.json) |
 | Reference Edit | [Open](examples/ui/H3_REFERENCE_EDIT.json) | [Open](examples/png/H3_REFERENCE_EDIT.png) | [API](examples/api/H3_REFERENCE_EDIT_API.json) |
+| Reference Edit, single image (experimental) | [Open](examples/ui/H3_REFERENCE_SINGLE.json) | [Open](examples/png/H3_REFERENCE_SINGLE.png) | [API](examples/api/H3_REFERENCE_SINGLE_API.json) |
 | Image to Image, Turbo v1.0 | [Open](examples/ui/H3_I2I_TURBO.json) | [Open](examples/png/H3_I2I_TURBO.png) | [API](examples/api/H3_I2I_TURBO_API.json) |
 
 Files in `examples/api/` are prompt JSON for API clients. They do not contain a canvas layout.
@@ -86,6 +87,7 @@ H3 processes multiple frames even when the output is one image.
 
 | Profile | Frames | Notes |
 |---|---:|---|
+| Single image | 1 | REF2VA/T2I only. Use the experimental image VAE. |
 | Recommended | 5 | Default. |
 | Extended | 9 | More temporal context. |
 | High | 13 | Higher memory and runtime. |
@@ -104,6 +106,7 @@ H3 processes multiple frames even when the output is one image.
 | FL2VA Turbo v1.0 | `euler` | `simple` | 8 | 12/3 |
 | FL2VA Turbo v1.0 768p | `euler` | `simple` | 4 | 6/3 |
 | REF2VA Turbo v0.1 | `euler` | `simple` | 4 | 12/3 |
+| Hybrid single image | `er_sde` | `sgm_uniform` | 8 | 12/3 |
 
 Turbo profiles require the exact matching adapter below. `Sampling Preset` configures sampling but does not load a LoRA.
 
@@ -115,6 +118,8 @@ Turbo profiles require the exact matching adapter below. `Sampling Preset` confi
 
 Do not mix FL2VA and REF2VA adapters or reuse one adapter's shifts with another. The older LightX v0.1 profile names remain available only to load existing workflows.
 
+The hybrid single-image profile reproduces the linked community workflow. It is experimental and expects the model stack listed below; it is not an official MiniMax recipe.
+
 ## Reference editing
 
 REF2VA rebuilds an image from ordered references. Refer to each input by number:
@@ -125,6 +130,25 @@ Replace only [feature] with the corresponding feature from <Picture 2>.
 ```
 
 `source_fidelity` changes the preservation text added to the prompt. It is not denoise strength.
+
+Each reference socket represents exactly one picture. If an upstream node sends an IMAGE batch, only its first image is used so later sockets keep stable `<Picture N>` numbers. State the role of every connected picture explicitly in the target instructions.
+
+### Experimental one-frame reference workflow
+
+`H3_REFERENCE_SINGLE` generates a true `T=1` H3 latent directly. It does not patch ComfyUI and does not route around Image Studio's conditioning output. Its model stack follows the community workflow:
+
+| Component | File |
+|---|---|
+| Hybrid diffusion model | `minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors` |
+| Image VAE | `minimax_h3_t1_image_vae_step1597.safetensors` |
+| Turbo adapter | `minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors`, strength 0.75 |
+| Detail adapter | `MaxiMin-HHH-R2V-ThisIsFine_LoRA_V0_1.safetensors`, strength 1.0 |
+
+The image VAE is intended only for one-frame output. Keep `minimax_h3_video_vae_fp16.safetensors` for multi-frame workflows. The hybrid checkpoint, image VAE, and detail adapter are community experiments and inherit their source-model licenses.
+
+Downloads: [hybrid checkpoint](https://huggingface.co/smhfacct/Minimax-H3-fl2va-ref2va-hybrid-models), [single-image VAE](https://huggingface.co/Mamad8/MiniMax-H3-Image-VAE), [ThisIsFine adapter](https://huggingface.co/Mamad8/MaxiMin-HHH-R2V-ThisIsFine), and [Turbo adapter](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/split_files/loras).
+
+The approach was prompted by the [single-image community workflow](https://www.reddit.com/r/StableDiffusion/comments/1vqka28/h3_singleimage_no_more_monkey_patching_also_no/). ComfyUI main subsequently added conversion from a regular empty image latent in [commit `0696f61`](https://github.com/Comfy-Org/ComfyUI/commit/0696f61dced6340086cdca64a96200c50f306c66). Image Studio builds the correct nested H3 video/audio latent itself, so its one-frame profile also works on ComfyUI 0.33.1 without that core commit.
 
 ## Resolution and memory
 

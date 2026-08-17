@@ -18,6 +18,7 @@ SLUGS = (
     "H3_T2I",
     "H3_I2I",
     "H3_REFERENCE_EDIT",
+    "H3_REFERENCE_SINGLE",
     "H3_I2I_TURBO",
 )
 LEGACY_PROFILES = {
@@ -187,6 +188,21 @@ def validate_api(repo: Path, slug: str) -> dict:
         assert lora["inputs"]["strength_model"] == 1.0
         assert lora["inputs"]["lora_name"] == "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors"
         assert profile == "Turbo v1.0 | 8 steps"
+    if slug == "H3_REFERENCE_SINGLE":
+        _, prepare = nodes_by_type["H3ReferenceEditPrepare"]
+        _, unet = nodes_by_type["UNETLoader"]
+        _, vae = nodes_by_type["VAELoader"]
+        loras = [node for node in prompt.values() if node["class_type"] == "LoraLoaderModelOnly"]
+        assert prepare["inputs"]["quality_profile"] == "single image | 1 frame (image VAE)"
+        assert prepare["inputs"]["reference_detail"] == "max_identity_2048"
+        assert unet["inputs"]["unet_name"] == "minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors"
+        assert vae["inputs"]["vae_name"] == "minimax_h3_t1_image_vae_step1597.safetensors"
+        assert profile == "hybrid single image | ER-SDE 8 steps"
+        assert {node["inputs"]["strength_model"] for node in loras} == {0.75, 1.0}
+        assert {node["inputs"]["lora_name"] for node in loras} == {
+            "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+            "MaxiMin-HHH-R2V-ThisIsFine_LoRA_V0_1.safetensors",
+        }
     return prompt
 
 
