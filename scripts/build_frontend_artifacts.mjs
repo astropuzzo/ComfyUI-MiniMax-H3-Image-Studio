@@ -23,7 +23,9 @@ const { chromium } = require(playwrightModule);
 
 const workflowSpecs = [
   { slug: "H3_T2I", api: "H3_T2I_API.json" },
+  { slug: "H3_T2I_SINGLE", api: "H3_T2I_SINGLE_API.json" },
   { slug: "H3_I2I", api: "H3_I2I_API.json" },
+  { slug: "H3_I2I_SINGLE", api: "H3_I2I_SINGLE_API.json" },
   { slug: "H3_REFERENCE_EDIT", api: "H3_REFERENCE_EDIT_API.json" },
   { slug: "H3_REFERENCE_SINGLE", api: "H3_REFERENCE_SINGLE_API.json" },
   { slug: "H3_I2I_TURBO", api: "H3_I2I_TURBO_API.json" },

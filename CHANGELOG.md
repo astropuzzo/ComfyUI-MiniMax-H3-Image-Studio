@@ -4,6 +4,13 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 
 ## [Unreleased]
 
+## [18.0.0] - 2026-08-18
+
+- Added dedicated one-frame text-to-image and image-to-image workflows using the experimental H3 image VAE.
+- Changed one-frame I2I to use editable REF2VA source conditioning instead of an impossible FL2VA frame-0 anchor.
+- Preserved the existing FL2VA keyframe path for every multi-frame I2I profile.
+- Added runtime and release validation for all three one-frame workflows.
+
 ## [17.0.2] - 2026-08-17
 
 - Reduced the experimental single-image detail adapter from `1.0` to `0.5` after direct pose-transfer testing showed that full strength could suppress requested edits.

@@ -374,6 +374,8 @@ def _normalize_prompt(
             "copy that trait from that picture even when it conflicts with <Picture 1>; do not revert the requested "
             "change to match <Picture 1>. Use each picture only for its explicitly assigned traits."
         )
+    else:
+        additional_rule = " <Picture 1> is the source reference."
     return (
         f"Follow the target image instructions exactly.{additional_rule} {primary_rule} "
         f"{still}\n\nTarget image instructions: {prompt}"
@@ -823,11 +825,8 @@ class H3ImagePrepare:
         width = _round_to_multiple(width, CANVAS_MULTIPLE)
         height = _round_to_multiple(height, CANVAS_MULTIPLE)
         internal_frames = _resolve_frame_count(frame_preset)
-        if mode == "image_to_image (FL2VA)" and internal_frames == 1:
-            raise ValueError(
-                "The one-frame profile is not compatible with FL2VA frame-0 editing because the only output frame "
-                "would also be the fixed source keyframe. Use Reference Edit with a REF2VA or hybrid checkpoint."
-            )
+        single_frame_i2i = mode == "image_to_image (FL2VA)" and internal_frames == 1
+        conditioning_mode = "reference_edit (REF2VA)" if single_frame_i2i else mode
 
         # Preserve the complete selected temporal profile. Single Image Output
         # decides whether to expose one still or every generated candidate.
@@ -855,8 +854,11 @@ class H3ImagePrepare:
             ignored_notes.append("Additional reference_image_2..9 inputs are connected but ignored outside REF2VA mode.")
         if mode == "text_to_image (FL2VA)" and source_image is not None:
             ignored_notes.append("source_image is connected but ignored in Text to Image mode.")
-        if mode == "reference_edit (REF2VA)":
-            connected_references = (source_image, *additional_references)
+        active_additional_references = (
+            additional_references if mode == "reference_edit (REF2VA)" else (None,) * len(additional_references)
+        )
+        if conditioning_mode == "reference_edit (REF2VA)":
+            connected_references = (source_image, *active_additional_references)
             batched_inputs = [
                 index for index, image in enumerate(connected_references, start=1)
                 if isinstance(image, torch.Tensor) and image.ndim == 4 and image.shape[0] > 1
@@ -868,14 +870,14 @@ class H3ImagePrepare:
                 )
 
         references = (
-            _collect_reference_images(source_image, additional_references)
-            if mode == "reference_edit (REF2VA)" and source_image is not None
+            _collect_reference_images(source_image, active_additional_references)
+            if conditioning_mode == "reference_edit (REF2VA)" and source_image is not None
             else []
         )
         final_prompt = _normalize_prompt(
-            mode, prompt, optimize_prompt, preserve_strength, max(1, len(references))
+            conditioning_mode, prompt, optimize_prompt, preserve_strength, max(1, len(references))
         )
-        if mode == "reference_edit (REF2VA)" and len(references) > 1:
+        if conditioning_mode == "reference_edit (REF2VA)" and len(references) > 1:
             missing_tags = [
                 f"<Picture {index}>" for index in range(1, len(references) + 1)
                 if f"<picture {index}>" not in (prompt or "").lower()
@@ -894,7 +896,7 @@ class H3ImagePrepare:
             cond = clip.encode_from_tokens_scheduled(tokens)
             checkpoint_note = "Use an FL2VA checkpoint."
 
-        elif mode == "image_to_image (FL2VA)":
+        elif mode == "image_to_image (FL2VA)" and not single_frame_i2i:
             if source_image is None:
                 raise ValueError("Image to Image mode requires source_image.")
             if vae is None:
@@ -934,10 +936,17 @@ class H3ImagePrepare:
             cond = node_helpers.conditioning_set_values(cond, {
                 "minimax_refs": ref_blocks,
             })
-            checkpoint_note = (
-                f"Use a REF2VA checkpoint; {len(references)} ordered reference image(s) encoded "
-                f"as {', '.join(reference_sizes)} and exposed as <Picture 1> through <Picture {len(references)}>."
-            )
+            if single_frame_i2i:
+                checkpoint_note = (
+                    "Use a hybrid or REF2VA checkpoint; one-frame I2I uses Picture 1 reference conditioning instead "
+                    "of an FL2VA frame-0 keyframe so the only output frame remains editable. "
+                    f"The source was encoded as {reference_sizes[0]}."
+                )
+            else:
+                checkpoint_note = (
+                    f"Use a REF2VA checkpoint; {len(references)} ordered reference image(s) encoded "
+                    f"as {', '.join(reference_sizes)} and exposed as <Picture 1> through <Picture {len(references)}>."
+                )
 
         if natural_frames > 362:
             trained_note = "beyond the documented 124-362-frame training range"
@@ -971,7 +980,7 @@ class H3TextToImagePrepare:
     """Prepare FL2VA text-to-image conditioning."""
 
     DESCRIPTION = (
-        "Prepares FL2VA text conditioning and an H3 latent. Decoding requires the H3 video VAE."
+        "Prepares FL2VA text conditioning and an H3 latent. One-frame output supports the experimental H3 image VAE."
     )
 
     @classmethod
@@ -1064,10 +1073,10 @@ class H3TextToImagePrepare:
 
 
 class H3ImageToImagePrepare:
-    """Prepare FL2VA image-to-image conditioning."""
+    """Prepare multi-frame FL2VA or one-frame reference-conditioned image editing."""
 
     DESCRIPTION = (
-        "Encodes the source at frame 0 and prepares FL2VA editing. Source Fidelity changes prompt text, not denoise."
+        "Uses an FL2VA frame-0 anchor for multi-frame editing and REF2VA source conditioning for editable one-frame output."
     )
 
     @classmethod
@@ -1075,8 +1084,8 @@ class H3ImageToImagePrepare:
         return {
             "required": {
                 "clip": ("CLIP", {"tooltip": "MiniMax H3 Qwen text/vision encoder."}),
-                "vae": ("VAE", {"tooltip": "MiniMax H3 video VAE used to encode the source frame."}),
-                "source_image": ("IMAGE", {"tooltip": "Source image used as FL2VA's frame-0 anchor."}),
+                "vae": ("VAE", {"tooltip": "H3 video VAE for multi-frame editing, or the experimental H3 image VAE for one frame."}),
+                "source_image": ("IMAGE", {"tooltip": "Source image used as an FL2VA frame-0 anchor or a one-frame REF2VA reference."}),
                 "edit_instruction": (
                     "STRING",
                     {
@@ -1111,8 +1120,8 @@ class H3ImageToImagePrepare:
                     {
                         "default": RECOMMENDED_FRAME_PROFILE,
                         "tooltip": (
-                            "5 frames is the minimum FL2VA edit profile. One frame is rejected because its only frame "
-                            "would be the fixed source keyframe. Use Reference Edit for single-image generation."
+                            "Multi-frame profiles use the FL2VA frame-0 anchor. One frame switches to REF2VA-style source "
+                            "conditioning and therefore requires a hybrid or REF2VA checkpoint plus the H3 image VAE."
                         ),
                     },
                 ),
@@ -1143,8 +1152,8 @@ class H3ImageToImagePrepare:
     RETURN_TYPES = ("CONDITIONING", "LATENT", "IMAGE", "INT", "STRING", "STRING")
     RETURN_NAMES = ("positive", "h3_latent", "fitted_source", "requested_frames", "image_prompt", "run_info")
     OUTPUT_TOOLTIPS = (
-        "Positive FL2VA image-to-image conditioning for the sampler's positive input.",
-        "Packed H3 audio/video latent with the fitted source encoded as frame-0 anchor.",
+        "Positive FL2VA or one-frame REF2VA image-to-image conditioning for the sampler's positive input.",
+        "Packed H3 audio/video latent; multi-frame mode also anchors the fitted source at frame 0.",
         "Source image after the selected crop, pad or stretch operation.",
         "Number of image frames that Exact Frame Decode should preserve and decode.",
         "Final edit prompt after optional still-image and source-preservation optimization.",
@@ -1177,7 +1186,9 @@ class H3ImageToImagePrepare:
             optimize_prompt=optimize_for_still,
             preserve_strength=source_fidelity,
             source_fit=source_fit,
-            reference_size="match_generation_area",
+            reference_size=(
+                "max_identity_2048" if quality_profile == SINGLE_IMAGE_FRAME_PROFILE else "match_generation_area"
+            ),
             source_image=source_image,
         )
 

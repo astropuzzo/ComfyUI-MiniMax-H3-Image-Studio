@@ -57,7 +57,9 @@ Open a file from `examples/ui/`, or drag a file from `examples/png/` onto the ca
 | Workflow | UI JSON | PNG | API JSON |
 |---|---|---|---|
 | Text to Image | [Open](examples/ui/H3_T2I.json) | [Open](examples/png/H3_T2I.png) | [API](examples/api/H3_T2I_API.json) |
+| Text to Image, single frame (experimental) | [Open](examples/ui/H3_T2I_SINGLE.json) | [Open](examples/png/H3_T2I_SINGLE.png) | [API](examples/api/H3_T2I_SINGLE_API.json) |
 | Image to Image | [Open](examples/ui/H3_I2I.json) | [Open](examples/png/H3_I2I.png) | [API](examples/api/H3_I2I_API.json) |
+| Image to Image, single frame (experimental) | [Open](examples/ui/H3_I2I_SINGLE.json) | [Open](examples/png/H3_I2I_SINGLE.png) | [API](examples/api/H3_I2I_SINGLE_API.json) |
 | Reference Edit | [Open](examples/ui/H3_REFERENCE_EDIT.json) | [Open](examples/png/H3_REFERENCE_EDIT.png) | [API](examples/api/H3_REFERENCE_EDIT_API.json) |
 | Reference Edit, single image (experimental) | [Open](examples/ui/H3_REFERENCE_SINGLE.json) | [Open](examples/png/H3_REFERENCE_SINGLE.png) | [API](examples/api/H3_REFERENCE_SINGLE_API.json) |
 | Image to Image, Turbo v1.0 | [Open](examples/ui/H3_I2I_TURBO.json) | [Open](examples/png/H3_I2I_TURBO.png) | [API](examples/api/H3_I2I_TURBO_API.json) |
@@ -70,8 +72,8 @@ For image-to-image and reference-edit workflows, select an image in every `Load 
 
 | Node | Function |
 |---|---|
-| `Text to Image` | Prepares FL2VA text conditioning and the H3 latent. |
-| `Image to Image` | Prepares FL2VA editing with the source image at frame 0. |
+| `Text to Image` | Prepares FL2VA text conditioning for multi-frame or one-frame output. |
+| `Image to Image` | Uses an FL2VA frame-0 anchor for multi-frame editing and REF2VA source conditioning for editable one-frame output. |
 | `Reference Edit` | Prepares REF2VA editing with up to nine ordered references. |
 | `Resolution Preset` | Calculates common H3 canvas sizes. |
 | `Sampling Preset` | Configures base or official Turbo sampling. |
@@ -87,7 +89,7 @@ H3 processes multiple frames even when the output is one image.
 
 | Profile | Frames | Notes |
 |---|---:|---|
-| Single image | 1 | REF2VA/T2I only. Use the experimental image VAE. |
+| Single image | 1 | T2I, I2I, or REF2VA. Use the experimental image VAE and hybrid checkpoint. |
 | Recommended | 5 | Default. |
 | Extended | 9 | More temporal context. |
 | High | 13 | Higher memory and runtime. |
@@ -133,9 +135,9 @@ Use the body pose and limb positions from <Picture 2>. The final pose must visib
 
 Each reference socket represents exactly one picture. If an upstream node sends an IMAGE batch, only its first image is used so later sockets keep stable `<Picture N>` numbers. State the role of every connected picture explicitly in the target instructions.
 
-### Experimental one-frame reference workflow
+### Experimental one-frame workflows
 
-`H3_REFERENCE_SINGLE` generates a true `T=1` H3 latent directly. It does not patch ComfyUI and does not route around Image Studio's conditioning output. Its model stack follows the community workflow:
+`H3_T2I_SINGLE`, `H3_I2I_SINGLE`, and `H3_REFERENCE_SINGLE` generate a true `T=1` H3 latent directly. They do not patch ComfyUI or route around Image Studio's conditioning output. Their model stack follows the community workflow:
 
 | Component | File |
 |---|---|
@@ -147,6 +149,8 @@ Each reference socket represents exactly one picture. If an upstream node sends 
 The image VAE is intended only for one-frame output. Keep `minimax_h3_video_vae_fp16.safetensors` for multi-frame workflows. The hybrid checkpoint, image VAE, and detail adapter are community experiments and inherit their source-model licenses.
 
 The detail adapter is intentionally set to `0.5`. In direct pose-transfer testing, `1.0` over-preserved Picture 1 and suppressed the requested pose, while `0.5` retained its identity and environment and allowed Picture 2's pose to transfer.
+
+One-frame T2I uses the hybrid checkpoint's FL2VA base without an image reference. One-frame I2I cannot use FL2VA's exact frame-0 keyframe because that keyframe would occupy the only output frame; Image Studio automatically switches that case to Picture 1 reference conditioning. Multi-frame I2I continues to use the original FL2VA keyframe path.
 
 Downloads: [hybrid checkpoint](https://huggingface.co/smhfacct/Minimax-H3-fl2va-ref2va-hybrid-models), [single-image VAE](https://huggingface.co/Mamad8/MiniMax-H3-Image-VAE), [ThisIsFine adapter](https://huggingface.co/Mamad8/MaxiMin-HHH-R2V-ThisIsFine), and [Turbo adapter](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/loras).
 

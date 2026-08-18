@@ -1,8 +1,8 @@
 {
   "id": "00000000-0000-0000-0000-000000000000",
   "revision": 0,
-  "last_node_id": 13,
-  "last_link_id": 40,
+  "last_node_id": 16,
+  "last_link_id": 44,
   "nodes": [
     {
       "id": 0,
@@ -44,8 +44,8 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            21,
-            24
+            23,
+            26
           ]
         },
         {
@@ -103,7 +103,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            29
+            43
           ]
         }
       ],
@@ -111,7 +111,7 @@
         "Node name for S&R": "UNETLoader"
       },
       "widgets_values": [
-        "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        "minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
         "default"
       ]
     },
@@ -165,7 +165,7 @@
           "name": "CLIP",
           "type": "CLIP",
           "links": [
-            22
+            24
           ]
         }
       ],
@@ -209,8 +209,8 @@
           "name": "VAE",
           "type": "VAE",
           "links": [
-            23,
-            36
+            25,
+            38
           ]
         }
       ],
@@ -218,7 +218,7 @@
         "Node name for S&R": "VAELoader"
       },
       "widgets_values": [
-        "minimax_h3_video_vae_fp16.safetensors"
+        "minimax_h3_t1_image_vae_step1597.safetensors"
       ]
     },
     {
@@ -241,7 +241,7 @@
           "name": "source_image",
           "shape": 7,
           "type": "IMAGE",
-          "link": 21
+          "link": 23
         },
         {
           "localized_name": "aspect_ratio",
@@ -288,7 +288,7 @@
           "name": "width",
           "type": "INT",
           "links": [
-            25
+            27
           ]
         },
         {
@@ -296,7 +296,7 @@
           "name": "height",
           "type": "INT",
           "links": [
-            26
+            28
           ]
         },
         {
@@ -338,19 +338,19 @@
           "localized_name": "clip",
           "name": "clip",
           "type": "CLIP",
-          "link": 22
+          "link": 24
         },
         {
           "localized_name": "vae",
           "name": "vae",
           "type": "VAE",
-          "link": 23
+          "link": 25
         },
         {
           "localized_name": "source_image",
           "name": "source_image",
           "type": "IMAGE",
-          "link": 24
+          "link": 26
         },
         {
           "localized_name": "edit_instruction",
@@ -368,7 +368,7 @@
           "widget": {
             "name": "width"
           },
-          "link": 25
+          "link": 27
         },
         {
           "localized_name": "height",
@@ -377,7 +377,7 @@
           "widget": {
             "name": "height"
           },
-          "link": 26
+          "link": 28
         },
         {
           "localized_name": "quality_profile",
@@ -422,7 +422,7 @@
           "name": "positive",
           "type": "CONDITIONING",
           "links": [
-            28
+            30
           ]
         },
         {
@@ -430,7 +430,7 @@
           "name": "h3_latent",
           "type": "LATENT",
           "links": [
-            34
+            36
           ]
         },
         {
@@ -438,7 +438,7 @@
           "name": "fitted_source",
           "type": "IMAGE",
           "links": [
-            38
+            40
           ]
         },
         {
@@ -465,10 +465,10 @@
         "Node name for S&R": "H3ImageToImagePrepare"
       },
       "widgets_values": [
-        "Transform the lighting into dramatic soft Rembrandt lighting while preserving the person, pose, clothing, composition, and background geometry. The final result is a sharp finished photograph.",
+        "Change the jacket to deep emerald green while preserving the person's identity, face, hair, pose, camera angle, composition, and background. Produce one sharp finished photograph.",
         1344,
         768,
-        "recommended | 5 frames",
+        "single image | 1 frame (image VAE)",
         0.75,
         "crop_center",
         true
@@ -507,7 +507,7 @@
           "name": "NOISE",
           "type": "NOISE",
           "links": [
-            30
+            32
           ]
         }
       ],
@@ -531,20 +531,20 @@
         46
       ],
       "flags": {},
-      "order": 8,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
           "localized_name": "model",
           "name": "model",
           "type": "MODEL",
-          "link": 27
+          "link": 29
         },
         {
           "localized_name": "conditioning",
           "name": "conditioning",
           "type": "CONDITIONING",
-          "link": 28
+          "link": 30
         }
       ],
       "outputs": [
@@ -553,7 +553,7 @@
           "name": "GUIDER",
           "type": "GUIDER",
           "links": [
-            31
+            33
           ]
         }
       ],
@@ -573,14 +573,14 @@
         118
       ],
       "flags": {},
-      "order": 6,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
           "localized_name": "model",
           "name": "model",
           "type": "MODEL",
-          "link": 29
+          "link": 31
         },
         {
           "localized_name": "sampling_profile",
@@ -598,7 +598,7 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            27
+            29
           ]
         },
         {
@@ -606,7 +606,7 @@
           "name": "sampler",
           "type": "SAMPLER",
           "links": [
-            32
+            34
           ]
         },
         {
@@ -614,7 +614,7 @@
           "name": "sigmas",
           "type": "SIGMAS",
           "links": [
-            33
+            35
           ]
         },
         {
@@ -629,7 +629,7 @@
         "Node name for S&R": "H3ImageSamplingPreset"
       },
       "widgets_values": [
-        "base quality | RES 20 steps"
+        "hybrid single image | ER-SDE 8 steps"
       ],
       "color": "#5a3424",
       "bgcolor": "#2c1810"
@@ -646,38 +646,38 @@
         106
       ],
       "flags": {},
-      "order": 9,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
           "localized_name": "noise",
           "name": "noise",
           "type": "NOISE",
-          "link": 30
+          "link": 32
         },
         {
           "localized_name": "guider",
           "name": "guider",
           "type": "GUIDER",
-          "link": 31
+          "link": 33
         },
         {
           "localized_name": "sampler",
           "name": "sampler",
           "type": "SAMPLER",
-          "link": 32
+          "link": 34
         },
         {
           "localized_name": "sigmas",
           "name": "sigmas",
           "type": "SIGMAS",
-          "link": 33
+          "link": 35
         },
         {
           "localized_name": "latent_image",
           "name": "latent_image",
           "type": "LATENT",
-          "link": 34
+          "link": 36
         }
       ],
       "outputs": [
@@ -686,7 +686,7 @@
           "name": "output",
           "type": "LATENT",
           "links": [
-            35
+            37
           ]
         },
         {
@@ -712,20 +712,20 @@
         86
       ],
       "flags": {},
-      "order": 10,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
           "localized_name": "samples",
           "name": "samples",
           "type": "LATENT",
-          "link": 35
+          "link": 37
         },
         {
           "localized_name": "vae",
           "name": "vae",
           "type": "VAE",
-          "link": 36
+          "link": 38
         }
       ],
       "outputs": [
@@ -734,7 +734,7 @@
           "name": "frames",
           "type": "IMAGE",
           "links": [
-            37
+            39
           ]
         },
         {
@@ -754,7 +754,7 @@
           "name": "recommended_index",
           "type": "INT",
           "links": [
-            39
+            41
           ]
         }
       ],
@@ -777,28 +777,28 @@
         306
       ],
       "flags": {},
-      "order": 11,
+      "order": 13,
       "mode": 0,
       "inputs": [
         {
           "localized_name": "frames",
           "name": "frames",
           "type": "IMAGE",
-          "link": 37
+          "link": 39
         },
         {
           "localized_name": "source_image",
           "name": "source_image",
           "shape": 7,
           "type": "IMAGE",
-          "link": 38
+          "link": 40
         },
         {
           "localized_name": "recommended_index",
           "name": "recommended_index",
           "shape": 7,
           "type": "INT",
-          "link": 39
+          "link": 41
         },
         {
           "localized_name": "strategy",
@@ -880,7 +880,7 @@
           "name": "selected_image",
           "type": "IMAGE",
           "links": [
-            40
+            42
           ]
         },
         {
@@ -919,7 +919,7 @@
         0,
         1,
         0.35,
-        4,
+        1,
         false
       ],
       "color": "#25534d",
@@ -937,14 +937,14 @@
         58
       ],
       "flags": {},
-      "order": 12,
+      "order": 14,
       "mode": 0,
       "inputs": [
         {
           "localized_name": "images",
           "name": "images",
           "type": "IMAGE",
-          "link": 40
+          "link": 42
         },
         {
           "localized_name": "filename_prefix",
@@ -966,13 +966,129 @@
       ],
       "properties": {},
       "widgets_values": [
-        "MiniMax_H3_Image"
+        "MiniMax_H3_I2I_Single"
+      ]
+    },
+    {
+      "id": 15,
+      "type": "LoraLoaderModelOnly",
+      "pos": [
+        470,
+        430
+      ],
+      "size": [
+        390,
+        82
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 43
+        },
+        {
+          "localized_name": "lora_name",
+          "name": "lora_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "strength_model",
+          "name": "strength_model",
+          "type": "FLOAT",
+          "widget": {
+            "name": "strength_model"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "MODEL",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            44
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoraLoaderModelOnly"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+        0.75
+      ]
+    },
+    {
+      "id": 16,
+      "type": "LoraLoaderModelOnly",
+      "pos": [
+        470,
+        780
+      ],
+      "size": [
+        390,
+        82
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 44
+        },
+        {
+          "localized_name": "lora_name",
+          "name": "lora_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "strength_model",
+          "name": "strength_model",
+          "type": "FLOAT",
+          "widget": {
+            "name": "strength_model"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "MODEL",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            31
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoraLoaderModelOnly"
+      },
+      "widgets_values": [
+        "MaxiMin-HHH-R2V-ThisIsFine_LoRA_V0_1.safetensors",
+        0.5
       ]
     }
   ],
   "links": [
     [
-      21,
+      23,
       0,
       0,
       4,
@@ -980,7 +1096,7 @@
       "IMAGE"
     ],
     [
-      22,
+      24,
       2,
       0,
       5,
@@ -988,7 +1104,7 @@
       "CLIP"
     ],
     [
-      23,
+      25,
       3,
       0,
       5,
@@ -996,7 +1112,7 @@
       "VAE"
     ],
     [
-      24,
+      26,
       0,
       0,
       5,
@@ -1004,7 +1120,7 @@
       "IMAGE"
     ],
     [
-      25,
+      27,
       4,
       0,
       5,
@@ -1012,7 +1128,7 @@
       "INT"
     ],
     [
-      26,
+      28,
       4,
       1,
       5,
@@ -1020,7 +1136,7 @@
       "INT"
     ],
     [
-      27,
+      29,
       8,
       0,
       7,
@@ -1028,7 +1144,7 @@
       "MODEL"
     ],
     [
-      28,
+      30,
       5,
       0,
       7,
@@ -1036,15 +1152,15 @@
       "CONDITIONING"
     ],
     [
-      29,
-      1,
+      31,
+      16,
       0,
       8,
       0,
       "MODEL"
     ],
     [
-      30,
+      32,
       6,
       0,
       10,
@@ -1052,7 +1168,7 @@
       "NOISE"
     ],
     [
-      31,
+      33,
       7,
       0,
       10,
@@ -1060,7 +1176,7 @@
       "GUIDER"
     ],
     [
-      32,
+      34,
       8,
       1,
       10,
@@ -1068,7 +1184,7 @@
       "SAMPLER"
     ],
     [
-      33,
+      35,
       8,
       2,
       10,
@@ -1076,7 +1192,7 @@
       "SIGMAS"
     ],
     [
-      34,
+      36,
       5,
       1,
       10,
@@ -1084,7 +1200,7 @@
       "LATENT"
     ],
     [
-      35,
+      37,
       10,
       0,
       11,
@@ -1092,7 +1208,7 @@
       "LATENT"
     ],
     [
-      36,
+      38,
       3,
       0,
       11,
@@ -1100,7 +1216,7 @@
       "VAE"
     ],
     [
-      37,
+      39,
       11,
       0,
       12,
@@ -1108,7 +1224,7 @@
       "IMAGE"
     ],
     [
-      38,
+      40,
       5,
       2,
       12,
@@ -1116,7 +1232,7 @@
       "IMAGE"
     ],
     [
-      39,
+      41,
       11,
       3,
       12,
@@ -1124,12 +1240,28 @@
       "INT"
     ],
     [
-      40,
+      42,
       12,
       0,
       13,
       0,
       "IMAGE"
+    ],
+    [
+      43,
+      1,
+      0,
+      15,
+      0,
+      "MODEL"
+    ],
+    [
+      44,
+      15,
+      0,
+      16,
+      0,
+      "MODEL"
     ]
   ],
   "groups": [],
@@ -1144,7 +1276,7 @@
     },
     "image_studio": {
       "release": "v18.0.0",
-      "source_api": "examples/api/H3_I2I_API.json"
+      "source_api": "examples/api/H3_I2I_SINGLE_API.json"
     }
   },
   "version": 0.4

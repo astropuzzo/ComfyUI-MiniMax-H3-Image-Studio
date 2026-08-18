@@ -16,7 +16,9 @@ from pathlib import Path
 
 SLUGS = (
     "H3_T2I",
+    "H3_T2I_SINGLE",
     "H3_I2I",
+    "H3_I2I_SINGLE",
     "H3_REFERENCE_EDIT",
     "H3_REFERENCE_SINGLE",
     "H3_I2I_TURBO",
@@ -203,6 +205,29 @@ def validate_api(repo: Path, slug: str) -> dict:
             "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
             "MaxiMin-HHH-R2V-ThisIsFine_LoRA_V0_1.safetensors",
         }
+    if slug in {"H3_T2I_SINGLE", "H3_I2I_SINGLE"}:
+        _, unet = nodes_by_type["UNETLoader"]
+        _, vae = nodes_by_type["VAELoader"]
+        loras = [node for node in prompt.values() if node["class_type"] == "LoraLoaderModelOnly"]
+        assert unet["inputs"]["unet_name"] == "minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors"
+        assert vae["inputs"]["vae_name"] == "minimax_h3_t1_image_vae_step1597.safetensors"
+        assert profile == "hybrid single image | ER-SDE 8 steps"
+        prepare_type = "H3TextToImagePrepare" if slug == "H3_T2I_SINGLE" else "H3ImageToImagePrepare"
+        _, prepare = nodes_by_type[prepare_type]
+        assert prepare["inputs"]["quality_profile"] == "single image | 1 frame (image VAE)"
+        assert any(
+            node["inputs"]["lora_name"] == "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors"
+            and node["inputs"]["strength_model"] == 0.75
+            for node in loras
+        )
+        if slug == "H3_T2I_SINGLE":
+            assert len(loras) == 1
+        else:
+            assert any(
+                node["inputs"]["lora_name"] == "MaxiMin-HHH-R2V-ThisIsFine_LoRA_V0_1.safetensors"
+                and node["inputs"]["strength_model"] == 0.5
+                for node in loras
+            )
     return prompt
 
 

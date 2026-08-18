@@ -49,6 +49,12 @@ def load_nodes_with_stubs():
     model_sampling.CONST = ConstMixin
     model_management.intermediate_device = lambda: torch.device("cpu")
     nested_tensor.NestedTensor = FakeNestedTensor
+    utils.common_upscale = lambda samples, width, height, *_args: torch.nn.functional.interpolate(
+        samples, size=(height, width), mode="bilinear", align_corners=False
+    )
+    node_helpers.conditioning_set_values = lambda conditioning, values: [
+        [entry[0], {**entry[1], **values}] for entry in conditioning
+    ]
     samplers.SCHEDULER_NAMES = ["simple"]
     samplers.SAMPLER_NAMES = ["res_multistep", "euler", "er_sde", "sa_solver"]
 
@@ -107,20 +113,44 @@ class RuntimeNodeTests(unittest.TestCase):
         self.assertEqual(tuple(video.shape), (1, 24, 1, 48, 84))
         self.assertEqual(tuple(audio.shape), (1, 32, 2, 2))
 
-    def test_fl2va_rejects_single_frame_keyframe_edit(self):
-        with self.assertRaisesRegex(ValueError, "not compatible with FL2VA"):
-            self.nodes.H3ImagePrepare().prepare(
-                clip=None,
-                mode="image_to_image (FL2VA)",
-                prompt="change the jacket",
-                width=1344,
-                height=768,
-                frame_preset=self.nodes.SINGLE_IMAGE_FRAME_PROFILE,
-                optimize_prompt=True,
-                preserve_strength=0.75,
-                source_fit="crop_center",
-                reference_size="match_generation_area",
-            )
+    def test_single_frame_i2i_uses_reference_conditioning(self):
+        class Clip:
+            def tokenize(self, prompt, **kwargs):
+                self.prompt = prompt
+                self.kwargs = kwargs
+                return prompt
+
+            @staticmethod
+            def encode_from_tokens_scheduled(_tokens):
+                return [[torch.zeros(1), {}]]
+
+        class Vae:
+            @staticmethod
+            def encode(image):
+                return torch.zeros((image.shape[0], 24, 1, 1, 1))
+
+        clip = Clip()
+        cond, latent, _source, frames, prompt, info = self.nodes.H3ImagePrepare().prepare(
+            clip=clip,
+            vae=Vae(),
+            mode="image_to_image (FL2VA)",
+            prompt="change the jacket to green",
+            width=64,
+            height=64,
+            frame_preset=self.nodes.SINGLE_IMAGE_FRAME_PROFILE,
+            optimize_prompt=True,
+            preserve_strength=0.75,
+            source_fit="crop_center",
+            reference_size="max_identity_2048",
+            source_image=torch.rand(1, 64, 64, 3),
+        )
+        self.assertEqual(frames, 1)
+        self.assertIn("minimax_refs", cond[0][1])
+        self.assertNotIn("minimax_keyframes", cond[0][1])
+        self.assertIn("minimax_ref_items", clip.kwargs)
+        self.assertIn("<Picture 1> is the source reference", prompt)
+        self.assertIn("one-frame I2I uses Picture 1 reference conditioning", info)
+        self.assertEqual(latent["h3_context_frames"], 1)
 
     def test_reference_sockets_use_one_picture_without_shifting_tags(self):
         primary_batch = torch.stack([
