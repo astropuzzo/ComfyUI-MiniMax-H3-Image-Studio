@@ -21,6 +21,7 @@ SLUGS = (
     "H3_REFERENCE_EDIT",
     "H3_REFERENCE_SINGLE",
     "H3_I2I_TURBO",
+    "H3_FAST_REFINER",
 )
 
 

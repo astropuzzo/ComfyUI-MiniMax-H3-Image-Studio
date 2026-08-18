@@ -4,6 +4,13 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 
 ## [Unreleased]
 
+## [19.0.0] - 2026-08-18
+
+- Added an optional four-step FLUX.2 Klein 4B detail-refinement workflow for any H3 still image.
+- Added Detail Tone Lock to restore H3 lighting and color while blending refined detail conservatively.
+- Replaced broad restoration wording with a preservation-first prompt that protects eye state, identity, composition, and exposure.
+- Added runtime-tested model, sampler, scheduler, prompt, and color-preservation guidance.
+
 ## [18.0.0] - 2026-08-18
 
 - Added dedicated one-frame text-to-image and image-to-image workflows using the experimental H3 image VAE.

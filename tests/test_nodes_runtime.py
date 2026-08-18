@@ -262,6 +262,24 @@ class RuntimeNodeTests(unittest.TestCase):
         self.assertEqual(shifted.sampling.noise_scale, 0.5)
         self.assertEqual(shifted.sampling.audio_scale, 4.0)
 
+    def test_detail_tone_lock_restores_broad_exposure_and_keeps_texture(self):
+        source = torch.full((1, 64, 64, 3), 0.25)
+        checker = ((torch.arange(64).view(-1, 1) + torch.arange(64).view(1, -1)) % 2).float()
+        refined = torch.full((1, 64, 64, 3), 0.55) + checker.view(1, 64, 64, 1) * 0.08
+
+        output, = self.nodes.H3DetailToneLock.lock_tone(source, refined, 1.0, 1.0, 8)
+
+        self.assertLess(abs(float(output.mean()) - 0.25), 0.01)
+        self.assertGreater(float(output.std()), 0.03)
+
+    def test_detail_tone_lock_resizes_and_broadcasts_source(self):
+        source = torch.rand(1, 32, 48, 3)
+        refined = torch.rand(2, 64, 96, 3)
+
+        output, = self.nodes.H3DetailToneLock.lock_tone(source, refined, 0.85, 0.45, 8)
+
+        self.assertEqual(tuple(output.shape), (2, 64, 96, 3))
+
     def test_official_turbo_profiles_are_adapter_specific(self):
         self.assertEqual(
             self.nodes.SAMPLING_PROFILES["Turbo v1.0 | 8 steps"],

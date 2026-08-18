@@ -22,6 +22,7 @@ SLUGS = (
     "H3_REFERENCE_EDIT",
     "H3_REFERENCE_SINGLE",
     "H3_I2I_TURBO",
+    "H3_FAST_REFINER",
 )
 LEGACY_PROFILES = {
     "quality | 20 steps",
@@ -175,6 +176,23 @@ def validate_api(repo: Path, slug: str) -> dict:
                 assert isinstance(slot, int) and slot >= 0, f"{path}: invalid origin slot"
 
     nodes_by_type = {node["class_type"]: (node_id, node) for node_id, node in prompt.items()}
+    if slug == "H3_FAST_REFINER":
+        _, unet = nodes_by_type["UNETLoader"]
+        _, clip = nodes_by_type["CLIPLoader"]
+        _, vae = nodes_by_type["VAELoader"]
+        _, scheduler = nodes_by_type["Flux2Scheduler"]
+        _, sampler = nodes_by_type["KSamplerSelect"]
+        _, tone_lock = nodes_by_type["H3DetailToneLock"]
+        assert unet["inputs"]["unet_name"] == "flux-2-klein-4b-fp8.safetensors"
+        assert clip["inputs"]["clip_name"] == "qwen_3_4b.safetensors"
+        assert clip["inputs"]["type"] == "flux2"
+        assert vae["inputs"]["vae_name"] == "flux2-vae.safetensors"
+        assert scheduler["inputs"]["steps"] == 4
+        assert sampler["inputs"]["sampler_name"] == "euler"
+        assert tone_lock["inputs"]["tone_lock"] == 0.85
+        assert tone_lock["inputs"]["refinement_strength"] == 0.45
+        return prompt
+
     decode_id, _ = nodes_by_type["H3ImageDecode"]
     _, selector = nodes_by_type["H3ImageFrameSelector"]
     assert selector["inputs"]["strategy"] == "decode_recommended"
@@ -254,11 +272,12 @@ def validate_ui(repo: Path, slug: str, prompt: dict, release: str) -> dict:
         assert origin in node_ids and target in node_ids, f"{path}: dangling link {link_id}"
         assert origin_slot >= 0 and target_slot >= 0
 
-    decode = next(node for node in nodes if node["type"] == "H3ImageDecode")
-    selector = next(node for node in nodes if node["type"] == "H3ImageFrameSelector")
-    assert any(link[1] == decode["id"] and link[2] == 3 and link[3] == selector["id"] for link in links), (
-        f"{path}: decoder recommendation is not connected"
-    )
+    if slug != "H3_FAST_REFINER":
+        decode = next(node for node in nodes if node["type"] == "H3ImageDecode")
+        selector = next(node for node in nodes if node["type"] == "H3ImageFrameSelector")
+        assert any(link[1] == decode["id"] and link[2] == 3 and link[3] == selector["id"] for link in links), (
+            f"{path}: decoder recommendation is not connected"
+        )
     assert workflow.get("extra", {}).get("image_studio", {}).get("release") == release
     return workflow
 

@@ -2072,6 +2072,110 @@ class H3ImageSamplingPreset:
         return shifted_model, sampler, sigmas, f"profile={sampling_profile} | {info}"
 
 
+class H3DetailToneLock:
+    """Keep refined micro-detail while restoring the source image's broad tone."""
+
+    DESCRIPTION = (
+        "Restores low-frequency lighting and color from the H3 source after a detail-refinement pass while keeping "
+        "the refiner's high-frequency texture. This reduces relighting and color drift without masks."
+    )
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "source_image": (
+                    "IMAGE",
+                    {
+                        "tooltip": "Original H3 image whose composition, lighting, and color should remain authoritative."
+                    },
+                ),
+                "refined_image": (
+                    "IMAGE",
+                    {
+                        "tooltip": "Image produced by the optional detail refiner."
+                    },
+                ),
+                "tone_lock": (
+                    "FLOAT",
+                    {
+                        "default": 0.85,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.05,
+                        "tooltip": "Strength of the source lighting and color restoration. 0 disables it; 1 fully locks broad tone.",
+                    },
+                ),
+                "refinement_strength": (
+                    "FLOAT",
+                    {
+                        "default": 0.45,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.05,
+                        "tooltip": "Amount of the refined result mixed into the source. Lower values reduce identity and geometry drift.",
+                    },
+                ),
+                "detail_radius": (
+                    "INT",
+                    {
+                        "default": 16,
+                        "min": 2,
+                        "max": 64,
+                        "step": 2,
+                        "tooltip": "Pixel radius separating broad tone from fine detail. The default suits roughly one-megapixel images.",
+                    },
+                ),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    OUTPUT_TOOLTIPS = (
+        "Refined image with source low-frequency lighting and color restored.",
+    )
+    FUNCTION = "lock_tone"
+    CATEGORY = f"{CATEGORY}/Refinement"
+
+    @staticmethod
+    def _blur(image: torch.Tensor, radius: int) -> torch.Tensor:
+        height, width = image.shape[-2:]
+        radius = min(int(radius), max(1, height - 1), max(1, width - 1))
+        positions = torch.arange(-radius, radius + 1, device=image.device, dtype=image.dtype)
+        sigma = max(1.0, radius / 3.0)
+        kernel = torch.exp(-(positions * positions) / (2.0 * sigma * sigma))
+        kernel = kernel / kernel.sum()
+        channels = image.shape[1]
+        horizontal = kernel.view(1, 1, 1, -1).expand(channels, 1, 1, -1)
+        vertical = kernel.view(1, 1, -1, 1).expand(channels, 1, -1, 1)
+        padding_mode = "reflect" if height > radius and width > radius else "replicate"
+        blurred = F.conv2d(F.pad(image, (radius, radius, 0, 0), mode=padding_mode), horizontal, groups=channels)
+        return F.conv2d(F.pad(blurred, (0, 0, radius, radius), mode=padding_mode), vertical, groups=channels)
+
+    @classmethod
+    def lock_tone(
+        cls,
+        source_image: torch.Tensor,
+        refined_image: torch.Tensor,
+        tone_lock: float,
+        refinement_strength: float,
+        detail_radius: int,
+    ):
+        source = source_image[..., :3].movedim(-1, 1)
+        refined = refined_image[..., :3].movedim(-1, 1)
+        if source.shape[0] == 1 and refined.shape[0] > 1:
+            source = source.expand(refined.shape[0], -1, -1, -1)
+        elif source.shape[0] != refined.shape[0]:
+            source = source[:1].expand(refined.shape[0], -1, -1, -1)
+        if source.shape[-2:] != refined.shape[-2:]:
+            source = F.interpolate(source, size=refined.shape[-2:], mode="bicubic", align_corners=False)
+        source_low = cls._blur(source, detail_radius)
+        refined_low = cls._blur(refined, detail_radius)
+        tone_locked = refined + float(tone_lock) * (source_low - refined_low)
+        output = source + float(refinement_strength) * (tone_locked - source)
+        return (output.clamp(0.0, 1.0).movedim(1, -1),)
+
+
 class H3WorkflowNote:
     """Display a note in a saved workflow."""
 
@@ -2119,6 +2223,7 @@ NODE_CLASS_MAPPINGS = {
     "H3ImagePrepare": H3ImagePrepare,
     "H3ImageDecode": H3ImageDecode,
     "H3ImageFrameSelector": H3ImageFrameSelector,
+    "H3DetailToneLock": H3DetailToneLock,
     "H3WorkflowNote": H3WorkflowNote,
 }
 
@@ -2133,5 +2238,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "H3ImagePrepare": "MiniMax H3 Image • Advanced Combined Prepare",
     "H3ImageDecode": "MiniMax H3 Image • Exact Frame Decode",
     "H3ImageFrameSelector": "MiniMax H3 Image • Single Image Output",
+    "H3DetailToneLock": "MiniMax H3 Image • Detail Tone Lock",
     "H3WorkflowNote": "MiniMax H3 Image • Workflow Note",
 }

@@ -1011,7 +1011,7 @@
       ]
     },
     "image_studio": {
-      "release": "v18.0.0",
+      "release": "v19.0.0",
       "source_api": "examples/api/H3_T2I_API.json"
     }
   },

@@ -29,6 +29,7 @@ const workflowSpecs = [
   { slug: "H3_REFERENCE_EDIT", api: "H3_REFERENCE_EDIT_API.json" },
   { slug: "H3_REFERENCE_SINGLE", api: "H3_REFERENCE_SINGLE_API.json" },
   { slug: "H3_I2I_TURBO", api: "H3_I2I_TURBO_API.json" },
+  { slug: "H3_FAST_REFINER", api: "H3_FAST_REFINER_API.json" },
 ];
 
 const basePositions = {
@@ -48,6 +49,29 @@ const basePositions = {
   "4": [940, 1040],
   "5": [1410, 900],
   "6": [1880, 980],
+};
+
+const refinerPositions = {
+  "0": [0, 430],
+  "4": [380, 430],
+  "5": [760, 430],
+  "1": [0, 1020],
+  "2": [380, 1020],
+  "3": [760, 1020],
+  "6": [1140, 720],
+  "7": [1520, 1120],
+  "8": [1140, 430],
+  "9": [1520, 720],
+  "10": [1520, 980],
+  "11": [1900, 790],
+  "12": [1140, 1370],
+  "13": [1520, 1370],
+  "14": [1900, 1370],
+  "15": [2280, 1370],
+  "16": [2280, 790],
+  "17": [2660, 790],
+  "18": [3040, 790],
+  "19": [3420, 790],
 };
 
 const browser = await chromium.launch({
@@ -117,6 +141,7 @@ for (const spec of workflowSpecs) {
   const apiPath = path.join(repoDir, "examples", "api", spec.api);
   const api = JSON.parse(await readFile(apiPath, "utf8"));
 
+  const positions = spec.slug === "H3_FAST_REFINER" ? refinerPositions : basePositions;
   const workflow = await page.evaluate(async ({ prompt, positions, slug, release }) => {
     const { app } = await import("/scripts/app.js");
     app.loadApiJson(prompt, slug);
@@ -151,7 +176,7 @@ for (const spec of workflowSpecs) {
     serialized.extra.ds = { scale, offset: [...app.canvas.ds.offset] };
     serialized.extra.image_studio = { release, source_api: `examples/api/${slug}_API.json` };
     return serialized;
-  }, { prompt: api, positions: basePositions, slug: spec.slug, release });
+  }, { prompt: api, positions, slug: spec.slug, release });
 
   const expectedNodeCount = Object.keys(api).length;
   if (workflow.nodes.length !== expectedNodeCount) {
