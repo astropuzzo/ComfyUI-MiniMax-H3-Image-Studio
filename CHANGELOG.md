@@ -4,6 +4,11 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 
 ## [Unreleased]
 
+## [20.0.0] - 2026-08-20
+
+- Added a custom mode to Sampling Preset with sampler, scheduler, steps, denoise, H3 sigma shifts, and beta-scheduler controls.
+- Kept documented and legacy presets immutable so existing workflows retain their exact recipes.
+
 ## [19.0.0] - 2026-08-18
 
 - Added an optional four-step FLUX.2 Klein 4B detail-refinement workflow for any H3 still image.

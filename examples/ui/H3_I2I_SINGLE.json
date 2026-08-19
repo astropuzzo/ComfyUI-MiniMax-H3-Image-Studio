@@ -570,7 +570,7 @@
       ],
       "size": [
         390,
-        118
+        310
       ],
       "flags": {},
       "order": 9,
@@ -588,6 +588,86 @@
           "type": "COMBO",
           "widget": {
             "name": "sampling_profile"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "custom_sampler",
+          "name": "custom_sampler",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "custom_sampler"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "custom_scheduler",
+          "name": "custom_scheduler",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "custom_scheduler"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "custom_steps",
+          "name": "custom_steps",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "custom_steps"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "custom_denoise",
+          "name": "custom_denoise",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "custom_denoise"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "custom_shift_video",
+          "name": "custom_shift_video",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "custom_shift_video"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "custom_shift_audio",
+          "name": "custom_shift_audio",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "custom_shift_audio"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "custom_beta_alpha",
+          "name": "custom_beta_alpha",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "custom_beta_alpha"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "custom_beta_beta",
+          "name": "custom_beta_beta",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "custom_beta_beta"
           },
           "link": null
         }
@@ -629,7 +709,15 @@
         "Node name for S&R": "H3ImageSamplingPreset"
       },
       "widgets_values": [
-        "hybrid single image | ER-SDE 8 steps"
+        "hybrid single image | ER-SDE 8 steps",
+        "res_multistep",
+        "simple",
+        20,
+        1,
+        12,
+        3,
+        0.6,
+        0.6
       ],
       "color": "#5a3424",
       "bgcolor": "#2c1810"
@@ -1275,7 +1363,7 @@
       ]
     },
     "image_studio": {
-      "release": "v19.0.0",
+      "release": "v20.0.0",
       "source_api": "examples/api/H3_I2I_SINGLE_API.json"
     }
   },

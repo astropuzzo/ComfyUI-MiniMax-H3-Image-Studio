@@ -77,7 +77,7 @@ For image-to-image and reference-edit workflows, select an image in every `Load 
 | `Image to Image` | Uses an FL2VA frame-0 anchor for multi-frame editing and REF2VA source conditioning for editable one-frame output. |
 | `Reference Edit` | Prepares REF2VA editing with up to nine ordered references. |
 | `Resolution Preset` | Calculates common H3 canvas sizes. |
-| `Sampling Preset` | Configures base or official Turbo sampling. |
+| `Sampling Preset` | Configures documented recipes or a complete custom sampler setup. |
 | `Exact Frame Decode` | Decodes the requested frame profile. |
 | `Single Image Output` | Selects one frame or returns the decoded batch. |
 | `Advanced Resolution` | Calculates custom canvas sizes. |
@@ -135,6 +135,8 @@ H3 processes multiple frames even when the output is one image.
 | Hybrid single image | `er_sde` | `sgm_uniform` | 8 | 12/3 |
 
 Turbo profiles require the exact matching adapter below. `Sampling Preset` configures sampling but does not load a LoRA.
+
+Choose `custom | use controls below` in `Sampling Preset` to select any installed sampler and scheduler and set steps, denoise, H3 video/audio shifts, and beta-scheduler parameters directly. The custom controls are ignored while a documented preset is selected, so loading an existing workflow preserves its exact recipe.
 
 | Profile | Required adapter |
 |---|---|

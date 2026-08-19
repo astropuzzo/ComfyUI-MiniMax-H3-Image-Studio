@@ -304,6 +304,80 @@ class RuntimeNodeTests(unittest.TestCase):
             ("er_sde", "simple", 4, 12.0, 3.0),
         )
 
+    def test_sampling_preset_exposes_custom_controls(self):
+        inputs = self.nodes.H3ImageSamplingPreset.INPUT_TYPES()
+        self.assertIn(self.nodes.CUSTOM_SAMPLING_PROFILE, inputs["required"]["sampling_profile"][0])
+        self.assertEqual(inputs["optional"]["custom_steps"][1]["default"], 20)
+        self.assertIn("beta_custom", inputs["optional"]["custom_scheduler"][0])
+
+    def test_sampling_preset_custom_mode_routes_all_settings(self):
+        captured = {}
+        original_build = self.nodes.H3SamplingSettings.build
+
+        def fake_build(_self, **kwargs):
+            captured.update(kwargs)
+            return "model", "sampler", "sigmas", "settings"
+
+        self.nodes.H3SamplingSettings.build = fake_build
+        try:
+            result = self.nodes.H3ImageSamplingPreset().build(
+                model="input-model",
+                sampling_profile=self.nodes.CUSTOM_SAMPLING_PROFILE,
+                custom_sampler="euler",
+                custom_scheduler="beta_custom",
+                custom_steps=7,
+                custom_denoise=0.65,
+                custom_shift_video=9.5,
+                custom_shift_audio=2.5,
+                custom_beta_alpha=0.7,
+                custom_beta_beta=0.8,
+            )
+        finally:
+            self.nodes.H3SamplingSettings.build = original_build
+
+        self.assertEqual(captured["model"], "input-model")
+        self.assertEqual(captured["sampler_name"], "euler")
+        self.assertEqual(captured["scheduler"], "beta_custom")
+        self.assertEqual(captured["steps"], 7)
+        self.assertEqual(captured["denoise"], 0.65)
+        self.assertEqual(captured["shift_video"], 9.5)
+        self.assertEqual(captured["shift_audio"], 2.5)
+        self.assertEqual(captured["beta_alpha"], 0.7)
+        self.assertEqual(captured["beta_beta"], 0.8)
+        self.assertIn(f"profile={self.nodes.CUSTOM_SAMPLING_PROFILE}", result[3])
+
+    def test_fixed_sampling_preset_ignores_custom_values(self):
+        captured = {}
+        original_build = self.nodes.H3SamplingSettings.build
+
+        def fake_build(_self, **kwargs):
+            captured.update(kwargs)
+            return "model", "sampler", "sigmas", "settings"
+
+        self.nodes.H3SamplingSettings.build = fake_build
+        try:
+            self.nodes.H3ImageSamplingPreset().build(
+                model="input-model",
+                sampling_profile="base quality | RES 20 steps",
+                custom_sampler="euler",
+                custom_scheduler="beta_custom",
+                custom_steps=2,
+                custom_denoise=0.1,
+                custom_shift_video=1.0,
+                custom_shift_audio=1.0,
+                custom_beta_alpha=2.0,
+                custom_beta_beta=2.0,
+            )
+        finally:
+            self.nodes.H3SamplingSettings.build = original_build
+
+        self.assertEqual(captured["sampler_name"], "res_multistep")
+        self.assertEqual(captured["scheduler"], "simple")
+        self.assertEqual(captured["steps"], 20)
+        self.assertEqual(captured["denoise"], 1.0)
+        self.assertEqual(captured["shift_video"], 12.0)
+        self.assertEqual(captured["shift_audio"], 3.0)
+
 
 if __name__ == "__main__":
     unittest.main()

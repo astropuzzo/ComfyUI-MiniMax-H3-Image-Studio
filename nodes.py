@@ -80,6 +80,8 @@ SAMPLING_PROFILES: Dict[str, Tuple[str, str, int, float, float]] = {
     "hybrid single image | ER-SDE 8 steps": ("er_sde", "sgm_uniform", 8, 12.0, 3.0),
 }
 
+CUSTOM_SAMPLING_PROFILE = "custom | use controls below"
+
 # Exact v14 strings and settings remain at the bottom of the combo so older
 # workflows load without silently changing their schedule. The generic Turbo
 # labels are deprecated because adapter compatibility cannot be guaranteed.
@@ -2020,23 +2022,84 @@ class H3ImageSamplingPreset:
     """Apply an H3 image sampling preset."""
 
     DESCRIPTION = (
-        "Applies a documented base, Turbo, or experimental single-image sampling profile."
+        "Applies a documented sampling recipe or exposes a complete custom sampler configuration."
     )
 
     @classmethod
     def INPUT_TYPES(cls):
+        scheduler_options = list(comfy.samplers.SCHEDULER_NAMES)
+        if "beta_custom" not in scheduler_options:
+            scheduler_options.append("beta_custom")
         return {
             "required": {
                 "model": ("MODEL", {"tooltip": "Loaded MiniMax H3 diffusion model."}),
                 "sampling_profile": (
-                    list(SAMPLING_PROFILES.keys()) + list(LEGACY_SAMPLING_PROFILES.keys()),
+                    list(SAMPLING_PROFILES.keys()) + [CUSTOM_SAMPLING_PROFILE] + list(LEGACY_SAMPLING_PROFILES.keys()),
                     {
                         "default": "base quality | RES 20 steps",
                         "tooltip": (
                             "Base profiles use RES Multistep. Turbo profiles use the official Euler/simple recipe and "
                             "must use the matching adapter. The hybrid single-image profile reproduces the published "
-                            "ER-SDE/SGM Uniform community workflow and is not an official MiniMax recipe."
+                            "ER-SDE/SGM Uniform community workflow. Choose custom to use the controls below."
                         ),
+                    },
+                ),
+            },
+            "optional": {
+                "custom_sampler": (
+                    list(comfy.samplers.SAMPLER_NAMES),
+                    {
+                        "default": "res_multistep" if "res_multistep" in comfy.samplers.SAMPLER_NAMES else comfy.samplers.SAMPLER_NAMES[0],
+                        "tooltip": "Sampler used only when sampling_profile is custom.",
+                    },
+                ),
+                "custom_scheduler": (
+                    scheduler_options,
+                    {
+                        "default": "simple" if "simple" in scheduler_options else scheduler_options[0],
+                        "tooltip": "Scheduler used only when sampling_profile is custom.",
+                    },
+                ),
+                "custom_steps": (
+                    "INT",
+                    {
+                        "default": 20, "min": 1, "max": 10000, "step": 1,
+                        "tooltip": "Sampling steps used only when sampling_profile is custom.",
+                    },
+                ),
+                "custom_denoise": (
+                    "FLOAT",
+                    {
+                        "default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,
+                        "tooltip": "ComfyUI denoise strength used only when sampling_profile is custom.",
+                    },
+                ),
+                "custom_shift_video": (
+                    "FLOAT",
+                    {
+                        "default": 12.0, "min": 0.01, "max": 100.0, "step": 0.01,
+                        "tooltip": "H3 video/image sigma shift used only when sampling_profile is custom.",
+                    },
+                ),
+                "custom_shift_audio": (
+                    "FLOAT",
+                    {
+                        "default": 3.0, "min": 0.01, "max": 100.0, "step": 0.01,
+                        "tooltip": "H3 audio sigma shift used only when sampling_profile is custom.",
+                    },
+                ),
+                "custom_beta_alpha": (
+                    "FLOAT",
+                    {
+                        "default": 0.6, "min": 0.01, "max": 50.0, "step": 0.01,
+                        "tooltip": "Alpha used only by the custom beta_custom scheduler.",
+                    },
+                ),
+                "custom_beta_beta": (
+                    "FLOAT",
+                    {
+                        "default": 0.6, "min": 0.01, "max": 50.0, "step": 0.01,
+                        "tooltip": "Beta used only by the custom beta_custom scheduler.",
                     },
                 ),
             },
@@ -2053,21 +2116,46 @@ class H3ImageSamplingPreset:
     FUNCTION = "build"
     CATEGORY = CATEGORY
 
-    def build(self, model, sampling_profile: str):
-        profiles = {**LEGACY_SAMPLING_PROFILES, **SAMPLING_PROFILES}
-        if sampling_profile not in profiles:
-            raise ValueError(f"Unknown H3 sampling profile: {sampling_profile}")
-        sampler_name, scheduler, steps, shift_video, shift_audio = profiles[sampling_profile]
+    def build(
+        self,
+        model,
+        sampling_profile: str,
+        custom_sampler: str = "res_multistep",
+        custom_scheduler: str = "simple",
+        custom_steps: int = 20,
+        custom_denoise: float = 1.0,
+        custom_shift_video: float = 12.0,
+        custom_shift_audio: float = 3.0,
+        custom_beta_alpha: float = 0.6,
+        custom_beta_beta: float = 0.6,
+    ):
+        if sampling_profile == CUSTOM_SAMPLING_PROFILE:
+            sampler_name = custom_sampler
+            scheduler = custom_scheduler
+            steps = custom_steps
+            denoise = custom_denoise
+            shift_video = custom_shift_video
+            shift_audio = custom_shift_audio
+            beta_alpha = custom_beta_alpha
+            beta_beta = custom_beta_beta
+        else:
+            profiles = {**LEGACY_SAMPLING_PROFILES, **SAMPLING_PROFILES}
+            if sampling_profile not in profiles:
+                raise ValueError(f"Unknown H3 sampling profile: {sampling_profile}")
+            sampler_name, scheduler, steps, shift_video, shift_audio = profiles[sampling_profile]
+            denoise = 1.0
+            beta_alpha = 0.6
+            beta_beta = 0.6
         shifted_model, sampler, sigmas, info = H3SamplingSettings().build(
             model=model,
             sampler_name=sampler_name,
             scheduler=scheduler,
             steps=steps,
-            denoise=1.0,
+            denoise=denoise,
             shift_video=shift_video,
             shift_audio=shift_audio,
-            beta_alpha=0.6,
-            beta_beta=0.6,
+            beta_alpha=beta_alpha,
+            beta_beta=beta_beta,
         )
         return shifted_model, sampler, sigmas, f"profile={sampling_profile} | {info}"
 

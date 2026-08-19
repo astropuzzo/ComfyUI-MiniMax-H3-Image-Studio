@@ -1284,7 +1284,7 @@
       ]
     },
     "image_studio": {
-      "release": "v19.0.0",
+      "release": "v20.0.0",
       "source_api": "examples/api/H3_FAST_REFINER_API.json"
     }
   },
