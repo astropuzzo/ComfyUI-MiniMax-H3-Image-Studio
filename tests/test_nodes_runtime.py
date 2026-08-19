@@ -272,13 +272,13 @@ class RuntimeNodeTests(unittest.TestCase):
         self.assertLess(abs(float(output.mean()) - 0.25), 0.01)
         self.assertGreater(float(output.std()), 0.03)
 
-    def test_detail_tone_lock_resizes_and_broadcasts_source(self):
+    def test_detail_tone_lock_preserves_source_resolution_and_batch(self):
         source = torch.rand(1, 32, 48, 3)
         refined = torch.rand(2, 64, 96, 3)
 
         output, = self.nodes.H3DetailToneLock.lock_tone(source, refined, 0.85, 0.45, 8)
 
-        self.assertEqual(tuple(output.shape), (2, 64, 96, 3))
+        self.assertEqual(tuple(output.shape), (1, 32, 48, 3))
 
     def test_official_turbo_profiles_are_adapter_specific(self):
         self.assertEqual(

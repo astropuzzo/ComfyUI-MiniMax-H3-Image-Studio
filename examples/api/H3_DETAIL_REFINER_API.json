@@ -1,0 +1,139 @@
+{
+  "0": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "input.png"
+    }
+  },
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "qwen_image_edit_2511_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": ["1", 0],
+      "lora_name": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+      "strength_model": 1.0
+    }
+  },
+  "5": {
+    "class_type": "ImageScaleToTotalPixels",
+    "inputs": {
+      "image": ["0", 0],
+      "upscale_method": "lanczos",
+      "megapixels": 2.0,
+      "resolution_steps": 16
+    }
+  },
+  "6": {
+    "class_type": "TextEncodeQwenImageEditPlus",
+    "inputs": {
+      "clip": ["2", 0],
+      "vae": ["3", 0],
+      "image1": ["5", 0],
+      "prompt": "Refine this exact image without redesigning it. Improve only genuine fine detail already implied by the source: natural skin texture, individual hair strands, fabric weave, fur, material texture, and clean object edges. Preserve the exact identity, facial proportions, expression, gaze, eye state, anatomy, pose, hands, clothing design, objects, text, composition, crop, camera, perspective, lighting, exposure, shadows, highlights, colors, and background. Do not beautify, relight, restyle, add, remove, replace, reshape, or invent scene content. Return the same image with more coherent natural micro-detail."
+    }
+  },
+  "7": {
+    "class_type": "TextEncodeQwenImageEditPlus",
+    "inputs": {
+      "clip": ["2", 0],
+      "vae": ["3", 0],
+      "image1": ["5", 0],
+      "prompt": ""
+    }
+  },
+  "8": {
+    "class_type": "FluxKontextMultiReferenceLatentMethod",
+    "inputs": {
+      "conditioning": ["6", 0],
+      "reference_latents_method": "index_timestep_zero"
+    }
+  },
+  "9": {
+    "class_type": "FluxKontextMultiReferenceLatentMethod",
+    "inputs": {
+      "conditioning": ["7", 0],
+      "reference_latents_method": "index_timestep_zero"
+    }
+  },
+  "10": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["5", 0],
+      "vae": ["3", 0]
+    }
+  },
+  "11": {
+    "class_type": "ModelSamplingAuraFlow",
+    "inputs": {
+      "model": ["4", 0],
+      "shift": 3.1
+    }
+  },
+  "12": {
+    "class_type": "CFGNorm",
+    "inputs": {
+      "model": ["11", 0],
+      "strength": 1.0,
+      "pre_cfg": false
+    }
+  },
+  "13": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["12", 0],
+      "positive": ["8", 0],
+      "negative": ["9", 0],
+      "latent_image": ["10", 0],
+      "seed": 1,
+      "steps": 4,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0
+    }
+  },
+  "14": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["13", 0],
+      "vae": ["3", 0]
+    }
+  },
+  "15": {
+    "class_type": "H3DetailToneLock",
+    "inputs": {
+      "source_image": ["0", 0],
+      "refined_image": ["14", 0],
+      "tone_lock": 0.85,
+      "refinement_strength": 0.55,
+      "detail_radius": 32
+    }
+  },
+  "16": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["15", 0],
+      "filename_prefix": "MiniMax_H3_Detail_Refined"
+    }
+  }
+}

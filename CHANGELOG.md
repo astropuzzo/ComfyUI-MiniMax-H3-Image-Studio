@@ -4,6 +4,12 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 
 ## [Unreleased]
 
+## [21.0.0] - 2026-08-20
+
+- Replaced the FLUX.2 Klein 4B refiner with a four-step Qwen Image Edit 2511 generative detail pass.
+- Preserved the original H3 image dimensions instead of shrinking output to the model working canvas.
+- Added a preservation-first Qwen edit prompt and full-resolution tone-lock path.
+
 ## [20.0.0] - 2026-08-20
 
 - Added a custom mode to Sampling Preset with sampler, scheduler, steps, denoise, H3 sigma shifts, and beta-scheduler controls.

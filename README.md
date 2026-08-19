@@ -63,7 +63,7 @@ Open a file from `examples/ui/`, or drag a file from `examples/png/` onto the ca
 | Reference Edit | [Open](examples/ui/H3_REFERENCE_EDIT.json) | [Open](examples/png/H3_REFERENCE_EDIT.png) | [API](examples/api/H3_REFERENCE_EDIT_API.json) |
 | Reference Edit, single image (experimental) | [Open](examples/ui/H3_REFERENCE_SINGLE.json) | [Open](examples/png/H3_REFERENCE_SINGLE.png) | [API](examples/api/H3_REFERENCE_SINGLE_API.json) |
 | Image to Image, Turbo v1.0 | [Open](examples/ui/H3_I2I_TURBO.json) | [Open](examples/png/H3_I2I_TURBO.png) | [API](examples/api/H3_I2I_TURBO_API.json) |
-| Fast Detail Refiner | [Open](examples/ui/H3_FAST_REFINER.json) | [Open](examples/png/H3_FAST_REFINER.png) | [API](examples/api/H3_FAST_REFINER_API.json) |
+| Generative Detail Refiner | [Open](examples/ui/H3_DETAIL_REFINER.json) | [Open](examples/png/H3_DETAIL_REFINER.png) | [API](examples/api/H3_DETAIL_REFINER_API.json) |
 
 Files in `examples/api/` are prompt JSON for API clients. They do not contain a canvas layout.
 
@@ -87,25 +87,24 @@ For image-to-image and reference-edit workflows, select an image in every `Load 
 
 ## Optional detail refinement
 
-`H3_FAST_REFINER` is a separate second pass. Load a finished H3 image, or connect any `Single Image Output` directly to `Scale Image to Total Pixels`. The H3 workflow remains unchanged when the refiner is not used.
+`H3_DETAIL_REFINER` is a separate generative image-edit pass. Load a finished H3 image, or connect any `Single Image Output` directly to `Scale Image to Total Pixels`. It is optional and does not change H3 generation.
 
-The default stack follows ComfyUI's native FLUX.2 Klein 4B distilled image-edit recipe:
+The workflow uses ComfyUI's native Qwen Image Edit 2511 path with the four-step Lightning adapter. Qwen 2511 was selected over FLUX.2 Klein 4B because this pass prioritizes edit fidelity, identity, and scene preservation rather than the smallest model.
 
 | Component | File | Folder |
 |---|---|---|
-| Diffusion model | `flux-2-klein-4b-fp8.safetensors` | `ComfyUI/models/diffusion_models/` |
-| Text encoder | `qwen_3_4b.safetensors` | `ComfyUI/models/text_encoders/` |
-| VAE | `flux2-vae.safetensors` | `ComfyUI/models/vae/` |
+| Diffusion model | `qwen_image_edit_2511_int8_convrot.safetensors` | `ComfyUI/models/diffusion_models/` |
+| Text encoder | `qwen_2.5_vl_7b_fp8_scaled.safetensors` | `ComfyUI/models/text_encoders/` |
+| VAE | `qwen_image_vae.safetensors` | `ComfyUI/models/vae/` |
+| Four-step adapter | `Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors` | `ComfyUI/models/loras/` |
 
-Downloads and model terms are listed in the [official ComfyUI FLUX.2 Klein guide](https://docs.comfy.org/tutorials/flux/flux-2-klein). The 4B checkpoint is the default because its four-step distilled edit path fits interactive use and has an Apache-2.0 model license.
+Downloads and setup are documented in the [official ComfyUI Qwen Image Edit 2511 guide](https://docs.comfy.org/tutorials/image/qwen/qwen-image-edit-2511). The workflow uses the official Comfy INT8 ConvRot checkpoint and the published [four-step Lightning adapter](https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning).
 
-The workflow uses Euler, `Flux2Scheduler`, four steps, CFG 1, and a one-megapixel working image. On the tested RTX 4090 it took 2.1-2.6 seconds with models warm and about 7 seconds after a clean ComfyUI start.
+The workflow uses Euler/simple, four steps, CFG 1, AuraFlow shift 3.1, CFG normalization 1, and a two-megapixel working copy. That working copy controls model cost only. The original H3 image goes directly to `Detail Tone Lock`, so the saved result always has the original width and height.
 
-The prompt is intentionally generic and preservation-first. Do not append the complete H3 generation prompt by default: scene descriptions can encourage the edit model to reconstruct the composition. If stronger repair is worth more drift, edit the refiner prompt and raise `refinement_strength`; the shipped `0.45` default favors identity and geometry preservation.
+The prompt is intentionally generic and preservation-first. Do not append the complete H3 generation prompt by default: scene descriptions can encourage reconstruction. Describe a specific defect only when it needs repair.
 
-`Detail Tone Lock` uses frequency separation rather than a mask: FLUX supplies fine detail, while H3 supplies broad lighting and color. `tone_lock=0.85`, `refinement_strength=0.45`, and `detail_radius=16` are the tested general defaults. This also reduces the brightening seen with broad restoration prompts.
-
-SeedVR2 remains useful when restoration matters more than latency. Direct tests on the same RTX 4090 took about 9.5 seconds for 3B FP8 and 15.9 seconds for 7B FP8 at 1024 square. Qwen Image Edit and FLUX.2 Klein 9B are not defaults because their larger model stacks conflict with the fast general-purpose target. Identity LoRAs are also excluded from the general workflow because they add subject-specific behavior instead of a universal restoration rule.
+`Detail Tone Lock` uses frequency separation rather than masks: Qwen supplies newly generated fine detail while H3 remains authoritative for dimensions, broad lighting, and color. The shipped defaults are `tone_lock=0.85`, `refinement_strength=0.55`, and `detail_radius=32`. This is not an upscaler or restoration-only chain; Qwen performs the second image-generation pass.
 
 ## Frame profiles
 

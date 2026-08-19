@@ -29,7 +29,7 @@ const workflowSpecs = [
   { slug: "H3_REFERENCE_EDIT", api: "H3_REFERENCE_EDIT_API.json" },
   { slug: "H3_REFERENCE_SINGLE", api: "H3_REFERENCE_SINGLE_API.json" },
   { slug: "H3_I2I_TURBO", api: "H3_I2I_TURBO_API.json" },
-  { slug: "H3_FAST_REFINER", api: "H3_FAST_REFINER_API.json" },
+  { slug: "H3_DETAIL_REFINER", api: "H3_DETAIL_REFINER_API.json" },
 ];
 
 const basePositions = {
@@ -53,25 +53,22 @@ const basePositions = {
 
 const refinerPositions = {
   "0": [0, 430],
-  "4": [380, 430],
-  "5": [760, 430],
-  "1": [0, 1020],
-  "2": [380, 1020],
-  "3": [760, 1020],
-  "6": [1140, 720],
-  "7": [1520, 1120],
-  "8": [1140, 430],
-  "9": [1520, 720],
-  "10": [1520, 980],
-  "11": [1900, 790],
-  "12": [1140, 1370],
-  "13": [1520, 1370],
-  "14": [1900, 1370],
-  "15": [2280, 1370],
-  "16": [2280, 790],
-  "17": [2660, 790],
-  "18": [3040, 790],
-  "19": [3420, 790],
+  "5": [420, 430],
+  "6": [840, 310],
+  "8": [1260, 310],
+  "7": [840, 720],
+  "9": [1260, 720],
+  "10": [840, 1080],
+  "1": [0, 1180],
+  "4": [420, 1420],
+  "2": [0, 1510],
+  "3": [420, 1770],
+  "11": [1260, 1280],
+  "12": [1680, 1280],
+  "13": [1680, 650],
+  "14": [2100, 650],
+  "15": [2520, 650],
+  "16": [2940, 650],
 };
 
 const browser = await chromium.launch({
@@ -141,7 +138,7 @@ for (const spec of workflowSpecs) {
   const apiPath = path.join(repoDir, "examples", "api", spec.api);
   const api = JSON.parse(await readFile(apiPath, "utf8"));
 
-  const positions = spec.slug === "H3_FAST_REFINER" ? refinerPositions : basePositions;
+  const positions = spec.slug === "H3_DETAIL_REFINER" ? refinerPositions : basePositions;
   const workflow = await page.evaluate(async ({ prompt, positions, slug, release }) => {
     const { app } = await import("/scripts/app.js");
     app.loadApiJson(prompt, slug);

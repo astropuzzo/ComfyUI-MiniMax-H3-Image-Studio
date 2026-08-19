@@ -1231,7 +1231,7 @@
       ]
     },
     "image_studio": {
-      "release": "v20.0.0",
+      "release": "v21.0.0",
       "source_api": "examples/api/H3_I2I_API.json"
     }
   },

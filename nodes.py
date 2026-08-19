@@ -2164,8 +2164,8 @@ class H3DetailToneLock:
     """Keep refined micro-detail while restoring the source image's broad tone."""
 
     DESCRIPTION = (
-        "Restores low-frequency lighting and color from the H3 source after a detail-refinement pass while keeping "
-        "the refiner's high-frequency texture. This reduces relighting and color drift without masks."
+        "Restores low-frequency lighting and color from the full-resolution H3 source after a detail-refinement pass. "
+        "The output always keeps the source image dimensions."
     )
 
     @classmethod
@@ -2175,7 +2175,7 @@ class H3DetailToneLock:
                 "source_image": (
                     "IMAGE",
                     {
-                        "tooltip": "Original H3 image whose composition, lighting, and color should remain authoritative."
+                        "tooltip": "Original H3 image whose dimensions, composition, lighting, and color remain authoritative."
                     },
                 ),
                 "refined_image": (
@@ -2220,7 +2220,7 @@ class H3DetailToneLock:
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("image",)
     OUTPUT_TOOLTIPS = (
-        "Refined image with source low-frequency lighting and color restored.",
+        "Refined image at the exact source width and height, with source low-frequency lighting and color restored.",
     )
     FUNCTION = "lock_tone"
     CATEGORY = f"{CATEGORY}/Refinement"
@@ -2251,12 +2251,12 @@ class H3DetailToneLock:
     ):
         source = source_image[..., :3].movedim(-1, 1)
         refined = refined_image[..., :3].movedim(-1, 1)
-        if source.shape[0] == 1 and refined.shape[0] > 1:
-            source = source.expand(refined.shape[0], -1, -1, -1)
+        if refined.shape[0] == 1 and source.shape[0] > 1:
+            refined = refined.expand(source.shape[0], -1, -1, -1)
         elif source.shape[0] != refined.shape[0]:
-            source = source[:1].expand(refined.shape[0], -1, -1, -1)
+            refined = refined[:1].expand(source.shape[0], -1, -1, -1)
         if source.shape[-2:] != refined.shape[-2:]:
-            source = F.interpolate(source, size=refined.shape[-2:], mode="bicubic", align_corners=False)
+            refined = F.interpolate(refined, size=source.shape[-2:], mode="bicubic", align_corners=False)
         source_low = cls._blur(source, detail_radius)
         refined_low = cls._blur(refined, detail_radius)
         tone_locked = refined + float(tone_lock) * (source_low - refined_low)

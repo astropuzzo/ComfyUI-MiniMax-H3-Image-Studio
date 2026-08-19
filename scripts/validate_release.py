@@ -22,7 +22,7 @@ SLUGS = (
     "H3_REFERENCE_EDIT",
     "H3_REFERENCE_SINGLE",
     "H3_I2I_TURBO",
-    "H3_FAST_REFINER",
+    "H3_DETAIL_REFINER",
 )
 LEGACY_PROFILES = {
     "quality | 20 steps",
@@ -176,21 +176,34 @@ def validate_api(repo: Path, slug: str) -> dict:
                 assert isinstance(slot, int) and slot >= 0, f"{path}: invalid origin slot"
 
     nodes_by_type = {node["class_type"]: (node_id, node) for node_id, node in prompt.items()}
-    if slug == "H3_FAST_REFINER":
+    if slug == "H3_DETAIL_REFINER":
         _, unet = nodes_by_type["UNETLoader"]
         _, clip = nodes_by_type["CLIPLoader"]
         _, vae = nodes_by_type["VAELoader"]
-        _, scheduler = nodes_by_type["Flux2Scheduler"]
-        _, sampler = nodes_by_type["KSamplerSelect"]
+        _, lora = nodes_by_type["LoraLoaderModelOnly"]
+        _, sampling = nodes_by_type["ModelSamplingAuraFlow"]
+        _, cfg_norm = nodes_by_type["CFGNorm"]
+        _, sampler = nodes_by_type["KSampler"]
         _, tone_lock = nodes_by_type["H3DetailToneLock"]
-        assert unet["inputs"]["unet_name"] == "flux-2-klein-4b-fp8.safetensors"
-        assert clip["inputs"]["clip_name"] == "qwen_3_4b.safetensors"
-        assert clip["inputs"]["type"] == "flux2"
-        assert vae["inputs"]["vae_name"] == "flux2-vae.safetensors"
-        assert scheduler["inputs"]["steps"] == 4
+        _, scale = nodes_by_type["ImageScaleToTotalPixels"]
+        load_id, _ = nodes_by_type["LoadImage"]
+        assert unet["inputs"]["unet_name"] == "qwen_image_edit_2511_int8_convrot.safetensors"
+        assert clip["inputs"]["clip_name"] == "qwen_2.5_vl_7b_fp8_scaled.safetensors"
+        assert clip["inputs"]["type"] == "qwen_image"
+        assert vae["inputs"]["vae_name"] == "qwen_image_vae.safetensors"
+        assert lora["inputs"]["lora_name"] == "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"
+        assert lora["inputs"]["strength_model"] == 1.0
+        assert sampling["inputs"]["shift"] == 3.1
+        assert cfg_norm["inputs"]["strength"] == 1.0
+        assert scale["inputs"]["megapixels"] == 2.0
+        assert sampler["inputs"]["steps"] == 4
+        assert sampler["inputs"]["cfg"] == 1.0
         assert sampler["inputs"]["sampler_name"] == "euler"
+        assert sampler["inputs"]["scheduler"] == "simple"
         assert tone_lock["inputs"]["tone_lock"] == 0.85
-        assert tone_lock["inputs"]["refinement_strength"] == 0.45
+        assert tone_lock["inputs"]["refinement_strength"] == 0.55
+        assert tone_lock["inputs"]["detail_radius"] == 32
+        assert tone_lock["inputs"]["source_image"] == [load_id, 0]
         return prompt
 
     decode_id, _ = nodes_by_type["H3ImageDecode"]
@@ -272,7 +285,7 @@ def validate_ui(repo: Path, slug: str, prompt: dict, release: str) -> dict:
         assert origin in node_ids and target in node_ids, f"{path}: dangling link {link_id}"
         assert origin_slot >= 0 and target_slot >= 0
 
-    if slug != "H3_FAST_REFINER":
+    if slug != "H3_DETAIL_REFINER":
         decode = next(node for node in nodes if node["type"] == "H3ImageDecode")
         selector = next(node for node in nodes if node["type"] == "H3ImageFrameSelector")
         assert any(link[1] == decode["id"] and link[2] == 3 and link[3] == selector["id"] for link in links), (
