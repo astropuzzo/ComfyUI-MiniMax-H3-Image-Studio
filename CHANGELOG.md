@@ -4,6 +4,17 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 
 ## [Unreleased]
 
+## [24.0.0] - 2026-09-30
+
+- Replaced the starter interface with four nodes and two workflows using one shared model setup.
+- Sample one H3 latent frame and include Fizgig's MIT-licensed temporal-group video-VAE decoder with attribution.
+- Keep one optional Larry v4 adapter at 0.38 for the community still recipe, with manual steps.
+- Remove frame counts, frame selection and hidden preservation prompts from the new interface. Keep megapixels, aspect ratios and advanced exact dimensions.
+- Combine image-to-image and reference editing with up to nine dynamic picture inputs and no locked source frame.
+- Cache prompt/reference preparation independently from seed and steps through ComfyUI's graph cache.
+- Preserve old nodes as deprecated compatibility definitions and old examples as historical files. Exclude historical examples and the decoder converter from Registry packaging.
+- Require ComfyUI 0.37.0 for the dynamic-input interface.
+
 ## [23.0.0] - 2026-09-12
 
 - Added paired four-step generation and reference-edit workflows with matching adapters; raised the eight-step entry points to about 1 MP.

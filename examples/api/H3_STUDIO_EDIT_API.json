@@ -1,0 +1,58 @@
+{
+  "1": {
+    "class_type": "H3StudioModels",
+    "inputs": {
+      "diffusion_model": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+      "text_encoder": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "video_vae": "minimax_h3_video_vae_fp16.safetensors",
+      "turbo_lora": "None"
+    }
+  },
+  "2": {
+    "class_type": "H3StudioEdit",
+    "inputs": {
+      "models": [
+        "1",
+        0
+      ],
+      "instruction": "Replace the entire background with solid black. Keep the person, pose and clothing unchanged.",
+      "aspect_ratio": "source image",
+      "megapixels": 3.0,
+      "width": 2048,
+      "height": 1536,
+      "image": [
+        "5",
+        0
+      ]
+    }
+  },
+  "3": {
+    "class_type": "H3StudioRender",
+    "inputs": {
+      "image_job": [
+        "2",
+        0
+      ],
+      "steps": 50,
+      "seed": 42,
+      "sampler_name": "er_sde",
+      "scheduler": "simple"
+    }
+  },
+  "4": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "3",
+        0
+      ],
+      "filename_prefix": "H3_EDIT"
+    }
+  },
+  "5": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "select_your_image.png"
+    }
+  }
+}

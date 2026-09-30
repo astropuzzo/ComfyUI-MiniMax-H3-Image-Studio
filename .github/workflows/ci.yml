@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Compile Python
-        run: python -m compileall -q __init__.py nodes.py scripts tests
+        run: python -m compileall -q __init__.py nodes.py studio.py still_decode.py scripts tests
       - name: Install CPU runtime for node tests
         run: |
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu

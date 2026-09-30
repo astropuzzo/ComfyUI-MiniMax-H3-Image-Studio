@@ -1,6 +1,8 @@
 # Validation
 
-The current report is [v23: high-resolution generation, editing, accelerators and decoder comparisons](docs/validation-v23.md).
+The current report is [v24: simplified single-frame generation and editing](docs/validation-v24.md), including measured timings and known artifacts.
+
+The [v23 decoder and model comparisons](docs/validation-v23.md) describe the older workflows.
 
 The v22 report below is historical and does not describe the complete v23 test coverage.
 

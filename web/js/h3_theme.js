@@ -10,11 +10,11 @@ const PALETTES = {
 
 function paletteFor(nodeType) {
   if (nodeType.includes("WorkflowNote")) return PALETTES.note;
-  if (nodeType.includes("Prepare") || nodeType.includes("TextToImage") || nodeType.includes("ImageToImage") || nodeType.includes("ReferenceEdit")) {
+  if (nodeType.includes("Prepare") || nodeType.includes("TextToImage") || nodeType.includes("ImageToImage") || nodeType.includes("ReferenceEdit") || nodeType === "H3StudioGenerate" || nodeType === "H3StudioEdit") {
     return PALETTES.prepare;
   }
   if (nodeType.includes("Sampling")) return PALETTES.sampling;
-  if (nodeType.includes("Decode") || nodeType.includes("Selector")) return PALETTES.output;
+  if (nodeType.includes("Decode") || nodeType.includes("Selector") || nodeType === "H3StudioRender") return PALETTES.output;
   return PALETTES.utility;
 }
 
