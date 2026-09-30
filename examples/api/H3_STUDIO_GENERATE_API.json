@@ -8,11 +8,33 @@
       "turbo_lora": "None"
     }
   },
+  "6": {
+    "class_type": "H3StudioLoRA",
+    "inputs": {
+      "models": [
+        "1",
+        0
+      ],
+      "lora_name": "None",
+      "strength_model": 1.0
+    }
+  },
+  "7": {
+    "class_type": "H3StudioLoRA",
+    "inputs": {
+      "models": [
+        "6",
+        0
+      ],
+      "lora_name": "None",
+      "strength_model": 1.0
+    }
+  },
   "2": {
     "class_type": "H3StudioGenerate",
     "inputs": {
       "models": [
-        "1",
+        "7",
         0
       ],
       "prompt": "A red ceramic mug on a wooden table, a yellow lemon to its right, soft daylight, natural detailed product photography.",

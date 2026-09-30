@@ -2,6 +2,8 @@
 
 The current report is [v24: simplified single-frame generation and editing](docs/validation-v24.md), including measured timings and known artifacts.
 
+The v24.1 LoRA addition passes **35 automated CPU tests**, covering ordered chaining, manual strengths, None/zero no-ops, validation, upstream immutability and both preparation paths (including multiple references). The installed ComfyUI **0.38.0** V3 API also validates the new schema, matching bypass input/output types and no-op outputs in a CPU-only check. Starter UI/API structural validation checks both optional slots and their native bypass state. These checks do not establish the visual quality or compatibility of arbitrary LoRA combinations; no new LoRA GPU benchmark is claimed.
+
 The [v23 decoder and model comparisons](docs/validation-v23.md) describe the older workflows.
 
 The v22 report below is historical and does not describe the complete v23 test coverage.

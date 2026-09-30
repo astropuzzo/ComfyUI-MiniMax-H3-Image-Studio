@@ -193,7 +193,13 @@ def validate_api(repo: Path, slug: str) -> dict:
         _, save = nodes_by_type["SaveImage"]
         assert models["inputs"]["diffusion_model"] == "minimax_h3_fl2va_pruned_int8_convrot.safetensors"
         assert models["inputs"]["turbo_lora"] == "None"
-        assert prep["inputs"]["models"] == [model_id, 0]
+        loras = [(node_id, node) for node_id, node in prompt.items() if node["class_type"] == "H3StudioLoRA"]
+        assert len(loras) == 2
+        upstream = model_id
+        for lora_id, lora in loras:
+            assert lora["inputs"] == {"models": [upstream, 0], "lora_name": "None", "strength_model": 1.0}
+            upstream = lora_id
+        assert prep["inputs"]["models"] == [upstream, 0]
         assert prep["inputs"]["megapixels"] == 3.0
         assert render["inputs"]["image_job"] == [prep_id, 0]
         assert render["inputs"]["steps"] == 50
@@ -203,7 +209,7 @@ def validate_api(repo: Path, slug: str) -> dict:
         if editing:
             image_id, _ = nodes_by_type["LoadImage"]
             assert prep["inputs"]["image"] == [image_id, 0]
-        assert len(prompt) == (5 if editing else 4)
+        assert len(prompt) == (7 if editing else 6)
         return prompt
     if slug == "H3_DETAIL_REFINER":
         _, unet = nodes_by_type["UNETLoader"]
@@ -331,6 +337,12 @@ def validate_ui(repo: Path, slug: str, prompt: dict, release: str) -> dict:
         f"{path}: bundled workflows must not depend on documentation nodes"
     )
     assert len({node["id"] for node in nodes}) == len(nodes), f"{path}: duplicate node ids"
+    if slug in STUDIO_SLUGS:
+        loras = [node for node in nodes if node["type"] == "H3StudioLoRA"]
+        assert len(loras) == 2 and all(node["mode"] == 4 for node in loras), (
+            f"{path}: both optional LoRA nodes must start in native bypass mode"
+        )
+        assert all(node["inputs"][0]["type"] == node["outputs"][0]["type"] == "H3_STUDIO_MODELS" for node in loras)
     if slug == "H3_STUDIO_EDIT":
         edit = next(node for node in nodes if node["type"] == "H3StudioEdit")
         assert any(item["name"] == "references.reference_image_2" for item in edit["inputs"]), (
