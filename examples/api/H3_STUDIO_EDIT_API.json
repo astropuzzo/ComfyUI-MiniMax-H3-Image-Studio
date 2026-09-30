@@ -8,11 +8,33 @@
       "turbo_lora": "None"
     }
   },
+  "6": {
+    "class_type": "H3StudioLoRA",
+    "inputs": {
+      "models": [
+        "1",
+        0
+      ],
+      "lora_name": "None",
+      "strength_model": 1.0
+    }
+  },
+  "7": {
+    "class_type": "H3StudioLoRA",
+    "inputs": {
+      "models": [
+        "6",
+        0
+      ],
+      "lora_name": "None",
+      "strength_model": 1.0
+    }
+  },
   "2": {
     "class_type": "H3StudioEdit",
     "inputs": {
       "models": [
-        "1",
+        "7",
         0
       ],
       "instruction": "Replace the entire background with solid black. Keep the person, pose and clothing unchanged.",

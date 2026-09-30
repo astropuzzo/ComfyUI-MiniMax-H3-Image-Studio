@@ -23,8 +23,10 @@ def build(edit):
     aspect = "source image" if edit else "1:1 square"
     api = {
         "1": {"class_type": "H3StudioModels", "inputs": dict(MODELS)},
+        "6": {"class_type": "H3StudioLoRA", "inputs": {"models": ["1", 0], "lora_name": "None", "strength_model": 1.0}},
+        "7": {"class_type": "H3StudioLoRA", "inputs": {"models": ["6", 0], "lora_name": "None", "strength_model": 1.0}},
         "2": {"class_type": prepare_type, "inputs": {
-            "models": ["1", 0], text_key: text, "aspect_ratio": aspect, "megapixels": 3.0,
+            "models": ["7", 0], text_key: text, "aspect_ratio": aspect, "megapixels": 3.0,
             "width": 2048, "height": 1536,
         }},
         "3": {"class_type": "H3StudioRender", "inputs": {
@@ -39,10 +41,14 @@ def build(edit):
     specs = [
         (1, "H3StudioModels", [20, 80], [410, 260], [],
          [("models", "H3_STUDIO_MODELS")], list(MODELS.values())),
-        (2, prepare_type, [500, 80], [480, 430],
+        (6, "H3StudioLoRA", [500, 80], [350, 220], [("models", "H3_STUDIO_MODELS")],
+         [("models", "H3_STUDIO_MODELS")], ["None", 1.0]),
+        (7, "H3StudioLoRA", [950, 80], [350, 220], [("models", "H3_STUDIO_MODELS")],
+         [("models", "H3_STUDIO_MODELS")], ["None", 1.0]),
+        (2, prepare_type, [500, 350], [480, 430],
          [("models", "H3_STUDIO_MODELS")] + ([("image", "IMAGE"), ("references.reference_image_2", "IMAGE")] if edit else []),
          [("image_job", "H3_STILL_JOB")], [text, aspect, 3.0, 2048, 1536]),
-        (3, "H3StudioRender", [1050, 80], [350, 270], [("image_job", "H3_STILL_JOB")],
+        (3, "H3StudioRender", [1050, 350], [350, 270], [("image_job", "H3_STILL_JOB")],
          [("image", "IMAGE"), ("run_info", "STRING")], [50, 42, "fixed", "er_sde", "simple"]),
         (4, "SaveImage", [1470, 80], [450, 550], [("images", "IMAGE")], [], [slug]),
     ]
@@ -52,7 +58,7 @@ def build(edit):
     nodes = []
     for node_id, kind, pos, size, inputs, outputs, widgets in specs:
         node = {"id": node_id, "type": kind, "pos": pos, "size": size, "flags": {},
-                "order": node_id-1, "mode": 0,
+                "order": len(nodes), "mode": 4 if kind == "H3StudioLoRA" else 0,
                 "inputs": [{"name": name, "type": typ, "link": None} for name, typ in inputs],
                 "outputs": [{"name": name, "type": typ, "links": [], "slot_index": i}
                             for i, (name, typ) in enumerate(outputs)],
@@ -62,7 +68,8 @@ def build(edit):
         nodes.append(node)
     by_id = {node["id"]: node for node in nodes}
     links = []
-    edges = [(1, 0, 2, 0, "H3_STUDIO_MODELS"), (2, 0, 3, 0, "H3_STILL_JOB"), (3, 0, 4, 0, "IMAGE")]
+    edges = [(1, 0, 6, 0, "H3_STUDIO_MODELS"), (6, 0, 7, 0, "H3_STUDIO_MODELS"),
+             (7, 0, 2, 0, "H3_STUDIO_MODELS"), (2, 0, 3, 0, "H3_STILL_JOB"), (3, 0, 4, 0, "IMAGE")]
     if edit:
         edges.append((5, 0, 2, 1, "IMAGE"))
     for origin, output, target, slot, typ in edges:

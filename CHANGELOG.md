@@ -4,6 +4,13 @@ All notable changes to MiniMax H3 Image Studio are documented here.
 
 ## [Unreleased]
 
+## [24.1.0] - 2026-09-30
+
+- Add chainable H3 LoRA nodes with individual filenames and manual strengths for generation and multi-reference editing.
+- Include two optional LoRA slots in both starter workflows, bypassed by default. Duplicate nodes for longer chains; None/zero strength also loads nothing.
+- Preserve upstream model bundles and cached branches; include all applied adapters and strengths in run information.
+- Keep the older embedded Turbo shortcut compatible, and document how to avoid applying it twice.
+
 ## [24.0.0] - 2026-09-30
 
 - Replaced the starter interface with four nodes and two workflows using one shared model setup.

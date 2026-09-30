@@ -98,6 +98,51 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(models["clip"].kwargs, {"images": []})
         self.assertEqual(job["positive"][0][1], {})
 
+    def test_lora_chain_uses_manual_strengths_without_mutating_upstream(self):
+        from unittest.mock import Mock
+        models = {**self.pipeline(), "model": object(), "loras": (("turbo.safetensors", 0.38),)}
+        first_model, second_model = object(), object()
+        loader = Mock()
+        loader.load_lora_model_only.side_effect = [(first_model,), (second_model,)]
+        with patch.object(self.studio.core_nodes, "LoraLoaderModelOnly", return_value=loader, create=True):
+            first = self.studio.H3StudioLoRA.execute(models, "style.safetensors", 0.65)[0]
+            second = self.studio.H3StudioLoRA.execute(first, "detail.safetensors", -0.2)[0]
+        self.assertEqual(loader.load_lora_model_only.call_args_list[0].args, (models["model"], "style.safetensors", 0.65))
+        self.assertEqual(loader.load_lora_model_only.call_args_list[1].args, (first_model, "detail.safetensors", -0.2))
+        self.assertEqual(models["loras"], (("turbo.safetensors", 0.38),))
+        self.assertEqual(first["loras"], (("turbo.safetensors", 0.38), ("style.safetensors", 0.65)))
+        self.assertEqual(second["loras"], (*first["loras"], ("detail.safetensors", -0.2)))
+        self.assertIs(first["model"], first_model)
+        self.assertIs(second["model"], second_model)
+        self.assertIs(second["clip"], models["clip"])
+        self.assertIs(second["vae"], models["vae"])
+        # Both preparation paths retain the patched bundle, including multi-reference editing.
+        generated = self.studio.H3StudioGenerate.execute(second, "a mug", "1:1 square", 0.1)[0]
+        source = torch.zeros(1, 64, 64, 3)
+        edited = self.studio.H3StudioEdit.execute(second, source, "combine pictures", "source image", 0.1,
+                                                references={"reference_image_2": source})[0]
+        self.assertIs(generated["models"], second)
+        self.assertIs(edited["models"], second)
+        self.assertEqual(edited["references"], 2)
+
+    def test_unused_loras_are_noops_and_strength_is_validated(self):
+        models = {"model": object(), "loras": ()}
+        with patch.object(self.studio.core_nodes, "LoraLoaderModelOnly", create=True) as loader:
+            self.assertIs(self.studio.H3StudioLoRA.execute(models, "None", 1)[0], models)
+            self.assertIs(self.studio.H3StudioLoRA.execute(models, "not_installed.safetensors", 0)[0], models)
+            loader.assert_not_called()
+        for strength in (float("nan"), float("inf"), 21, -21):
+            with self.assertRaises(ValueError):
+                self.studio.H3StudioLoRA.execute(models, "style.safetensors", strength)
+
+    def test_lora_schema_has_matching_passthrough_types_and_all_local_adapters(self):
+        with patch.object(self.studio.folder_paths, "get_filename_list", return_value=["style.safetensors", "sub/detail.safetensors"]):
+            schema = self.studio.H3StudioLoRA.define_schema()
+        self.assertEqual(schema.inputs[0].args, ("models",))
+        self.assertEqual(schema.outputs[0].display_name, "models")
+        self.assertEqual(schema.inputs[1].options, ["None", "style.safetensors", "sub/detail.safetensors"])
+        self.assertIn("H3StudioLoRA", self.studio.NODE_CLASS_MAPPINGS)
+
     def test_edit_references_are_ordered_and_never_lock_source_frame(self):
         models = self.pipeline()
         source = torch.full((2, 64, 96, 3), 0.1)

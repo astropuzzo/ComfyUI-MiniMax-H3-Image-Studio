@@ -128,7 +128,7 @@ class H3StudioModels(io.ComfyNode):
                                default=model_default(vaes, "minimax_h3_video_vae_int8_convrot.safetensors"),
                                tooltip="Official H3 video VAE, INT8 ConvRot or FP16. The still decoder is included."),
                 io.Combo.Input("turbo_lora", options=turbo, default="None", optional=True, advanced=True,
-                               tooltip="Optional Larry v4 step600 EMA adapter. Fizgig's STILL recipe uses strength 0.38 and 20 steps. None requires no extra download; start at 50 steps."),
+                               tooltip="Compatibility shortcut for Larry v4 at 0.38. Prefer chained H3 LoRA nodes for manual strengths/multiple adapters. Leave None when applying Larry through a LoRA node; do not load it twice."),
             ],
             outputs=[Models.Output(display_name="models", tooltip="Shared H3 models. Connect to Text to Image or Image Edit.")],
         )
@@ -144,7 +144,35 @@ class H3StudioModels(io.ComfyNode):
                 raise ValueError("This optional still recipe supports Larry v4 step600 EMA only.")
             model = core_nodes.LoraLoaderModelOnly().load_lora_model_only(model, turbo_lora, 0.38)[0]
         return io.NodeOutput({"model": model, "clip": clip, "vae": vae,
-                              "diffusion_model": diffusion_model, "turbo_lora": turbo_lora})
+                              "diffusion_model": diffusion_model, "turbo_lora": turbo_lora,
+                              "loras": ((turbo_lora, 0.38),) if turbo_lora != "None" else ()})
+
+
+class H3StudioLoRA(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="H3StudioLoRA", display_name="H3 • LoRA", category=CATEGORY,
+            description="Apply one compatible H3 model LoRA. Chain or duplicate nodes for multiple adapters. Native bypass passes the models through unchanged; no reference/edit features are removed.",
+            inputs=[Models.Input("models", tooltip="Connect H3 Models or the previous H3 LoRA. The original model bundle is not modified."),
+                    io.Combo.Input("lora_name", options=["None"] + folder_paths.get_filename_list("loras"), default="None",
+                                   tooltip="Choose a compatible MiniMax H3 LoRA from models/loras. None loads nothing. LoRAs for unrelated models are not compatible."),
+                    io.Float.Input("strength_model", default=1.0, min=-20.0, max=20.0, step=0.01,
+                                   tooltip="Manual adapter strength. Zero is a no-op. Larry v4's community still recipe uses 0.38 with 20 steps; other adapters need their own recipe.")],
+            outputs=[Models.Output(display_name="models", tooltip="Connect another H3 LoRA, Text to Image or Image Edit. Bypass unused nodes.")],
+        )
+
+    @classmethod
+    def execute(cls, models, lora_name="None", strength_model=1.0):
+        if not math.isfinite(strength_model) or not -20 <= strength_model <= 20:
+            raise ValueError("LoRA strength must be a finite value between -20 and 20.")
+        if lora_name == "None" or strength_model == 0:
+            return io.NodeOutput(models)
+        model = core_nodes.LoraLoaderModelOnly().load_lora_model_only(models["model"], lora_name, strength_model)[0]
+        # The native loader clones the model patcher. Keep upstream bundles and
+        # other generation/edit branches untouched, including cached metadata.
+        return io.NodeOutput({**models, "model": model,
+                              "loras": (*models.get("loras", ()), (lora_name, strength_model))})
 
 
 class H3StudioGenerate(io.ComfyNode):
@@ -153,7 +181,7 @@ class H3StudioGenerate(io.ComfyNode):
         return io.Schema(
             node_id="H3StudioGenerate", display_name="H3 • Text to Image", category=CATEGORY,
             description="Describe one image and choose its size. Prepares exactly one H3 latent frame; no frame count or selection is needed.",
-            inputs=[Models.Input("models", tooltip="Connect H3 Models."),
+            inputs=[Models.Input("models", tooltip="Connect H3 Models directly, or the last optional H3 LoRA."),
                     io.String.Input("prompt", multiline=True, dynamic_prompts=True, default="",
                                     tooltip="Describe the final image. Your prompt is used directly without hidden preservation wording."),
                     *resolution_inputs()],
@@ -172,7 +200,7 @@ class H3StudioEdit(io.ComfyNode):
         return io.Schema(
             node_id="H3StudioEdit", display_name="H3 • Image Edit", category=CATEGORY,
             description="Image-to-image and reference editing in one node. Picture 1 is the source; additional picture sockets appear as needed, up to nine total. Output is a newly sampled still, never a locked source frame.",
-            inputs=[Models.Input("models", tooltip="Connect the same H3 Models used for generation."),
+            inputs=[Models.Input("models", tooltip="Connect H3 Models or the last optional H3 LoRA. Multiple references are supported with or without LoRAs."),
                     io.Image.Input("image", tooltip="Source image, <Picture 1>. Only the first item of a connected batch is used."),
                     io.String.Input("instruction", multiline=True, dynamic_prompts=True, default="",
                                     tooltip="Describe the change. With multiple references explicitly assign roles to <Picture 1>, <Picture 2>, etc. There is no hidden fidelity prompt or denoise slider."),
@@ -229,14 +257,15 @@ class H3StudioRender(io.ComfyNode):
         sampled = time.perf_counter()
         images = decode_still(models["vae"], result)
         finished = time.perf_counter()
+        lora_info = ", ".join(f"{name} @ {strength:g}" for name, strength in models.get("loras", ())) or models["turbo_lora"]
         info = (
             f"{image_job['width']}x{image_job['height']} | one sampled latent frame | {steps} steps | seed {seed} | "
             f"{sampler_name}/{scheduler} | {image_job['references']} reference(s) | "
             f"sample {sampled-started:.2f}s, decode {finished-sampled:.2f}s | "
-            f"model {models['diffusion_model']} | LoRA {models['turbo_lora']}"
+            f"model {models['diffusion_model']} | LoRAs {lora_info}"
         )
         return io.NodeOutput(images, info)
 
 
-NODE_CLASS_MAPPINGS = {cls.__name__: cls for cls in (H3StudioModels, H3StudioGenerate, H3StudioEdit, H3StudioRender)}
+NODE_CLASS_MAPPINGS = {cls.__name__: cls for cls in (H3StudioModels, H3StudioLoRA, H3StudioGenerate, H3StudioEdit, H3StudioRender)}
 NODE_DISPLAY_NAME_MAPPINGS = {name: cls.GET_SCHEMA().display_name for name, cls in NODE_CLASS_MAPPINGS.items()}

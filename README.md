@@ -2,7 +2,7 @@
 
 # MiniMax H3 Image Studio
 
-MiniMax H3 **text-to-image and image editing** in ComfyUI. Four nodes, two starter workflows, one shared model setup. Multiple reference images are supported.
+MiniMax H3 **text-to-image and image editing** in ComfyUI. Two starter workflows, one shared model setup, optional stackable LoRAs. Multiple reference images are supported.
 
 The new path samples **one latent frame** and includes the video-VAE decode technique from [Fizgig H3 Still](https://github.com/shootthesound/ComfyUI-Fizgig-H3-Still). That latent is repeated only during decoding, then one image is kept. No frame counts, frame selection or separate Fizgig installation.
 
@@ -28,10 +28,10 @@ Following Fizgig's examples, both workflows start with FL2VA, including referenc
 
 Open **Templates → MiniMax H3 Image Studio**, or drag either JSON onto ComfyUI:
 
-- [Generate](example_workflows/H3_GENERATE.json): `Models → Text to Image → Render Image → Save Image`.
+- [Generate](example_workflows/H3_GENERATE.json): `Models → optional LoRAs → Text to Image → Render Image → Save Image`.
 - [Edit](example_workflows/H3_EDIT.json): add a `Load Image` connected to `Image Edit`.
 
-![Compact edit workflow](assets/benchmarks/v24/edit-workflow.jpg)
+Both templates include **two H3 • LoRA nodes, bypassed by default**. You can ignore them and generate without downloading any adapters.
 
 Select the three files in **H3 • Models**. Write your prompt, choose aspect ratio and megapixels, then queue. **Render Image** exposes manual steps and seed. Changing only seed or steps reuses ComfyUI's cached prompt/reference preparation.
 
@@ -64,11 +64,17 @@ and the room from <Picture 3>.
 
 References are encoded separately from the generated still. There is no fixed frame-zero source anchor, hidden preservation-strength prompt or misleading denoise slider. This avoids returning a locked source frame, but the model can still miss an instruction.
 
-## Optional faster recipe
+## Multiple LoRAs (optional)
 
-The default requires no LoRA. One optional adapter is supported: `minimax_h3_turbo_v4_step600_ema.safetensors` from [Larry's H3 Turbo repository](https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora), placed in `models/loras/`.
+Place compatible **MiniMax H3** LoRAs in `models/loras/`. Each **H3 • LoRA** node has a filename and manual model strength. Enable the slots you want by switching their native node mode from **Bypass** to **Always**. Bypass unused slots; `None` or strength `0` also passes the models through without loading a LoRA.
 
-Select it in **Models → advanced → turbo_lora**, then set **steps to 20**. The loader applies strength **0.38**, matching [Fizgig's still example](https://github.com/shootthesound/ComfyUI-Fizgig-H3-Still#is-there-an-example-workflow). Steps remain editable. This community still recipe differs from Larry's strength-1, 4–8-step video guidance; an old LightX adapter is not interchangeable.
+Need more than two? Duplicate a LoRA node and connect it into the chain: `Models → LoRA 1 → LoRA 2 → … → Text to Image / Image Edit`. There is no hard-coded adapter-count limit. This works with generation, image-to-image and multi-reference editing; the text encoder and VAE remain shared. LoRAs for unrelated architectures are not supported. Each adapter may require a particular model, strength, sampler or step count—stacking them does not guarantee compatibility or better quality.
+
+### Optional faster recipe
+
+For `minimax_h3_turbo_v4_step600_ema.safetensors` from [Larry's H3 Turbo repository](https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora), enable one LoRA node, select the file, set strength **0.38** and Render steps **20**, matching [Fizgig's still example](https://github.com/shootthesound/ComfyUI-Fizgig-H3-Still#is-there-an-example-workflow). All strengths and steps remain editable.
+
+The older **Models → advanced → turbo_lora** shortcut still works at fixed 0.38 for saved workflows. Leave it **None** when applying that adapter through a LoRA node, so it is not applied twice. The community still recipe differs from Larry's strength-1, 4–8-step video guidance; an old LightX adapter is not interchangeable. Render's `run_info` lists the applied adapters and strengths.
 
 ## Earlier versions
 
