@@ -9,7 +9,7 @@ Include:
 - ComfyUI, Python, PyTorch, and Image Studio versions
 - operating system, GPU, VRAM, and system RAM
 - diffusion model, text encoder, VAE, and LoRA filenames
-- workflow mode, resolution, frame profile, sampler, scheduler, steps, and seed
+- workflow mode, resolution, sampler, scheduler, steps and seed (also frame profile for historical workflows)
 - workflow JSON or metadata PNG
 - complete console traceback
 - expected and actual behavior
@@ -27,4 +27,4 @@ python scripts/validate_release.py
 python -m unittest discover -s tests -v
 ```
 
-When an API workflow changes, rebuild its UI JSON and PNG metadata in the same pull request.
+Rebuild the two starter UI/API workflows with `python scripts/build_studio_workflows.py`. Check them in the current ComfyUI frontend. Historical examples keep their original PNG metadata and version labels.

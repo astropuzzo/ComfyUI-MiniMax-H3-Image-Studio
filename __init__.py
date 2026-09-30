@@ -1,4 +1,15 @@
-from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+from .nodes import NODE_CLASS_MAPPINGS as COMPATIBILITY_NODES
+from .nodes import NODE_DISPLAY_NAME_MAPPINGS as COMPATIBILITY_NAMES
+from .studio import NODE_CLASS_MAPPINGS as STUDIO_NODES
+from .studio import NODE_DISPLAY_NAME_MAPPINGS as STUDIO_NAMES
+
+# Keep saved workflows executable without crowding the normal node picker.
+for _node in COMPATIBILITY_NODES.values():
+    _node.DEPRECATED = True
+    _node.CATEGORY = "MiniMax H3/Compatibility"
+
+NODE_CLASS_MAPPINGS = {**COMPATIBILITY_NODES, **STUDIO_NODES}
+NODE_DISPLAY_NAME_MAPPINGS = {**COMPATIBILITY_NAMES, **STUDIO_NAMES}
 
 WEB_DIRECTORY = "./web"
 

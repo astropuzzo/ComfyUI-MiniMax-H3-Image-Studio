@@ -1,6 +1,6 @@
 [project]
 name = "minimax-h3-image-studio"
-version = "23.0.0"
+version = "24.0.0"
 description = "ComfyUI nodes and workflows for MiniMax H3 image generation and editing."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -19,4 +19,4 @@ PublisherId = "astropuzzo"
 DisplayName = "MiniMax H3 Image Studio"
 Icon = "https://raw.githubusercontent.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/main/assets/branding/minimax-h3-image-studio.svg"
 Banner = "https://raw.githubusercontent.com/astropuzzo/ComfyUI-MiniMax-H3-Image-Studio/main/assets/branding/minimax-h3-banner.svg"
-requires-comfyui = ">=0.30.0"
+requires-comfyui = ">=0.37.0"

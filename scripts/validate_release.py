@@ -36,6 +36,7 @@ LEGACY_PROFILES = {
     "turbo | 8 steps (LoRA)",
     "turbo | 4 steps (LoRA, experimental)",
 }
+STUDIO_SLUGS = {"H3_STUDIO_GENERATE": "H3_GENERATE", "H3_STUDIO_EDIT": "H3_EDIT"}
 
 
 def load_json(path: Path):
@@ -44,7 +45,8 @@ def load_json(path: Path):
 
 
 def validate_python(repo: Path) -> None:
-    for path in (repo / "nodes.py", repo / "__init__.py", *sorted((repo / "scripts").glob("*.py"))):
+    for path in (repo / "nodes.py", repo / "__init__.py", repo / "studio.py", repo / "still_decode.py",
+                 *sorted((repo / "scripts").glob("*.py"))):
         ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
 
@@ -133,7 +135,7 @@ def validate_metadata(repo: Path) -> str:
     assert f"## [{version}]" in changelog, f"CHANGELOG.md: missing release {version}"
     comfy = metadata["tool"]["comfy"]
     assert comfy["PublisherId"] == "astropuzzo"
-    assert comfy["requires-comfyui"] == ">=0.30.0"
+    assert comfy["requires-comfyui"] == ">=0.37.0"
     assert comfy["Icon"].endswith("/assets/branding/minimax-h3-image-studio.svg")
     assert comfy["Banner"].endswith("/assets/branding/minimax-h3-banner.svg")
     return f"v{version}"
@@ -183,6 +185,26 @@ def validate_api(repo: Path, slug: str) -> dict:
                 assert isinstance(slot, int) and slot >= 0, f"{path}: invalid origin slot"
 
     nodes_by_type = {node["class_type"]: (node_id, node) for node_id, node in prompt.items()}
+    if slug in STUDIO_SLUGS:
+        editing = slug == "H3_STUDIO_EDIT"
+        model_id, models = nodes_by_type["H3StudioModels"]
+        prep_id, prep = nodes_by_type["H3StudioEdit" if editing else "H3StudioGenerate"]
+        render_id, render = nodes_by_type["H3StudioRender"]
+        _, save = nodes_by_type["SaveImage"]
+        assert models["inputs"]["diffusion_model"] == "minimax_h3_fl2va_pruned_int8_convrot.safetensors"
+        assert models["inputs"]["turbo_lora"] == "None"
+        assert prep["inputs"]["models"] == [model_id, 0]
+        assert prep["inputs"]["megapixels"] == 3.0
+        assert render["inputs"]["image_job"] == [prep_id, 0]
+        assert render["inputs"]["steps"] == 50
+        assert render["inputs"]["sampler_name"] == "er_sde"
+        assert render["inputs"]["scheduler"] == "simple"
+        assert save["inputs"]["images"] == [render_id, 0]
+        if editing:
+            image_id, _ = nodes_by_type["LoadImage"]
+            assert prep["inputs"]["image"] == [image_id, 0]
+        assert len(prompt) == (5 if editing else 4)
+        return prompt
     if slug == "H3_DETAIL_REFINER":
         _, unet = nodes_by_type["UNETLoader"]
         _, clip = nodes_by_type["CLIPLoader"]
@@ -297,7 +319,8 @@ def validate_api(repo: Path, slug: str) -> dict:
 
 
 def validate_ui(repo: Path, slug: str, prompt: dict, release: str) -> dict:
-    path = repo / "examples" / "ui" / f"{slug}.json"
+    path = (repo / "example_workflows" / f"{STUDIO_SLUGS[slug]}.json" if slug in STUDIO_SLUGS
+            else repo / "examples" / "ui" / f"{slug}.json")
     workflow = load_json(path)
     assert workflow.get("version") == 0.4, f"{path}: expected workflow schema 0.4"
     nodes = workflow.get("nodes")
@@ -308,6 +331,11 @@ def validate_ui(repo: Path, slug: str, prompt: dict, release: str) -> dict:
         f"{path}: bundled workflows must not depend on documentation nodes"
     )
     assert len({node["id"] for node in nodes}) == len(nodes), f"{path}: duplicate node ids"
+    if slug == "H3_STUDIO_EDIT":
+        edit = next(node for node in nodes if node["type"] == "H3StudioEdit")
+        assert any(item["name"] == "references.reference_image_2" for item in edit["inputs"]), (
+            f"{path}: V3 reference sockets must include their autogrow group prefix"
+        )
 
     node_ids = {node["id"] for node in nodes}
     link_ids = set()
@@ -319,7 +347,7 @@ def validate_ui(repo: Path, slug: str, prompt: dict, release: str) -> dict:
         assert origin in node_ids and target in node_ids, f"{path}: dangling link {link_id}"
         assert origin_slot >= 0 and target_slot >= 0
 
-    if slug != "H3_DETAIL_REFINER":
+    if slug != "H3_DETAIL_REFINER" and slug not in STUDIO_SLUGS:
         decode = next(node for node in nodes if node["type"] == "H3ImageDecode")
         selector = next(node for node in nodes if node["type"] == "H3ImageFrameSelector")
         assert any(link[1] == decode["id"] and link[2] == 3 and link[3] == selector["id"] for link in links), (
@@ -378,14 +406,20 @@ def validate_repo(repo: Path) -> None:
     validate_registry_assets(repo)
     for slug in SLUGS:
         prompt = validate_api(repo, slug)
-        workflow = validate_ui(repo, slug, prompt, release)
-        validate_png(repo, slug, prompt, workflow, release)
+        # Historical canvases retain their original version and PNG metadata.
+        archive_release = "v23.0.0"
+        workflow = validate_ui(repo, slug, prompt, archive_release)
+        validate_png(repo, slug, prompt, workflow, archive_release)
+    for slug in STUDIO_SLUGS:
+        prompt = validate_api(repo, slug)
+        validate_ui(repo, slug, prompt, release)
+    assert set(path.stem for path in (repo / "example_workflows").glob("*.json")) == set(STUDIO_SLUGS.values())
 
 
 def main() -> None:
     repo = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parents[1]).resolve()
     validate_repo(repo)
-    print(f"release validation passed: {len(SLUGS)} API + UI + metadata PNG workflow sets")
+    print(f"release validation passed: {len(STUDIO_SLUGS)} starter workflows; {len(SLUGS)} historical workflow sets")
 
 
 if __name__ == "__main__":

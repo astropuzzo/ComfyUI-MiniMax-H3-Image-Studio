@@ -1,4 +1,4 @@
-# Development-only files; runtime nodes, web assets, docs and examples remain packaged.
+# Exclude development tooling and historical examples; retain runtime and two starter templates.
 .github/
 tests/
 scripts/build_frontend_artifacts.mjs
@@ -10,5 +10,9 @@ scripts/benchmark_matrix.py
 scripts/benchmark_gallery.py
 scripts/audit_benchmark.py
 scripts/probe_decoder.py
+scripts/convert_single_frame_decoder.py
+scripts/build_studio_workflows.py
+examples/
+docs/legacy-v23.md
 assets/image-edit-examples/
 assets/benchmarks/
