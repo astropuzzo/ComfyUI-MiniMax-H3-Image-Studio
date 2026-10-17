@@ -35,6 +35,8 @@ Both templates include **two H3 • LoRA nodes, bypassed by default**. You can i
 
 Select the three files in **H3 • Models**. Write your prompt, choose aspect ratio and megapixels, then queue. **Render Image** exposes manual steps and seed. Changing only seed or steps reuses ComfyUI's cached prompt/reference preparation.
 
+To use other loaders, add **H3 • Models From Inputs** and connect their `MODEL`, `CLIP`, and `VAE` outputs to `diffusion_model`, `text_encoder`, and `video_vae`. Use compatible MiniMax H3 components (text encoder type `minimax` and the video VAE). Its `models` output connects to the same nodes as **H3 • Models**, without reloading the models. Upstream model filenames and LoRAs are not available to the run summary.
+
 | Control | Starting point |
 |---|---|
 | Resolution | **3 MP**; 1 MP for a preview, 4–8 MP for larger output |

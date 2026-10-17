@@ -148,6 +148,25 @@ class H3StudioModels(io.ComfyNode):
                               "loras": ((turbo_lora, 0.38),) if turbo_lora != "None" else ()})
 
 
+class H3StudioModelsFromInputs(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="H3StudioModelsFromInputs", display_name="H3 • Models From Inputs", category=CATEGORY,
+            description="Combine an already loaded MiniMax H3 diffusion model, text/vision encoder and video VAE into shared H3 models.",
+            inputs=[io.Model.Input("diffusion_model", tooltip="Loaded MiniMax H3 diffusion model."),
+                    io.Clip.Input("text_encoder", tooltip="Loaded MiniMax H3 Qwen text/vision encoder."),
+                    io.Vae.Input("video_vae", tooltip="Loaded MiniMax H3 video VAE.")],
+            outputs=[Models.Output(display_name="models", tooltip="Shared H3 models. Connect to LoRA, Text to Image or Image Edit.")],
+        )
+
+    @classmethod
+    def execute(cls, diffusion_model, text_encoder, video_vae):
+        return io.NodeOutput({"model": diffusion_model, "clip": text_encoder, "vae": video_vae,
+                              "diffusion_model": "external", "turbo_lora": "unknown (external model)",
+                              "loras": ()})
+
+
 class H3StudioLoRA(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -267,5 +286,5 @@ class H3StudioRender(io.ComfyNode):
         return io.NodeOutput(images, info)
 
 
-NODE_CLASS_MAPPINGS = {cls.__name__: cls for cls in (H3StudioModels, H3StudioLoRA, H3StudioGenerate, H3StudioEdit, H3StudioRender)}
+NODE_CLASS_MAPPINGS = {cls.__name__: cls for cls in (H3StudioModels, H3StudioModelsFromInputs, H3StudioLoRA, H3StudioGenerate, H3StudioEdit, H3StudioRender)}
 NODE_DISPLAY_NAME_MAPPINGS = {name: cls.GET_SCHEMA().display_name for name, cls in NODE_CLASS_MAPPINGS.items()}
